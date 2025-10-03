@@ -6,22 +6,36 @@ Get up and running with `uvs` in minutes! This guide will walk you through insta
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) installed and available in your PATH
 
-## Installation Steps
+## Option 1: Quick Install (Recommended for Users)
 
-### 1. Clone or Download the Project
+Install `uvs` as a command-line tool:
+
+```bash
+uv tool install https://github.com/maphew/uvs.git
+```
+
+Now you can use `uvs` directly:
+
+```bash
+uvs --help
+```
+
+## Option 2: Development Setup
+
+For contributors or those who want to modify `uvs`:
+
+### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/your-repo/uvs.git
 cd uvs
 ```
 
-### 2. Verify the Installer Works
+### 2. Run the Installer Directly
 
 ```bash
 uv run scripts/uvs.py --help
 ```
-
-You should see the help output showing all available options.
 
 ## Your First Installation
 
@@ -32,7 +46,7 @@ Create a file named `my-tool.py` with [PEP 723](https://peps.python.org/pep-0723
 ### 2. Install Your Script
 
 ```bash
-uv run scripts/uvs.py my-tool.py
+uvs my-tool.py
 ```
 
 You should see output similar to:
@@ -63,7 +77,7 @@ Create a file named `api-check.py` with [PEP 723](https://peps.python.org/pep-07
 ### 2. Install the Script
 
 ```bash
-uv run scripts/uvs.py api-check.py
+uvs api-check.py
 ```
 
 ### 3. Use the Tool
@@ -77,7 +91,7 @@ api-check
 ### List All Installed Tools
 
 ```bash
-uv run scripts/uvs.py --list
+uvs --list
 ```
 
 Output:
@@ -89,7 +103,7 @@ api-check    <- /path/to/api-check.py (version: 0.1.0)
 ### Find the Source of a Tool
 
 ```bash
-uv run scripts/uvs.py --which my-tool
+uvs --which my-tool
 ```
 
 Output:
@@ -103,7 +117,7 @@ Output:
 2. Reinstall with the `--update` flag:
 
 ```bash
-uv run scripts/uvs.py --update my-tool.py
+uvs --update my-tool.py
 ```
 
 The tool will detect changes and bump the version automatically.
@@ -121,7 +135,7 @@ uv tool uninstall my-tool
 Override the default tool name:
 
 ```bash
-uv run scripts/uvs.py --name awesome-tool my-tool.py
+uvs --name awesome-tool my-tool.py
 ```
 
 Now you can run it as:
@@ -134,7 +148,7 @@ awesome-tool
 Install all Python scripts in a directory:
 
 ```bash
-uv run scripts/uvs.py --all ./scripts/
+uvs --all ./scripts/
 ```
 
 ### Dry Run
@@ -142,7 +156,7 @@ uv run scripts/uvs.py --all ./scripts/
 Inspect the generated package without installing:
 
 ```bash
-uv run scripts/uvs.py --dry-run my-tool.py
+uvs --dry-run my-tool.py
 ```
 
 ## Common Workflows
@@ -151,16 +165,16 @@ uv run scripts/uvs.py --dry-run my-tool.py
 
 1. Create your script with [PEP 723](https://peps.python.org/pep-0723/) inline metadata
 2. Test it directly: `uv run my-script.py`
-3. Install it: `uv run scripts/uvs.py my-script.py`
+3. Install it: `uvs my-script.py`
 4. Test the installed command: `my-script`
-5. Iterate: make changes, then `uv run scripts/uvs.py --update my-script.py`
+5. Iterate: make changes, then `uvs --update my-script.py`
 
 ### Workflow 2: Sharing a Script
 
 1. Create your script with comprehensive [PEP 723](https://peps.python.org/pep-0723/) metadata
 2. Test it thoroughly
 3. Share the script file with others
-4. Others can install it with: `uv run scripts/uvs.py path/to/script.py`
+4. Others can install it with: `uvs path/to/script.py`
 
 ### Workflow 3: Managing a Collection
 

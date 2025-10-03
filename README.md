@@ -25,16 +25,30 @@ While `uv` provides excellent tool management for traditional Python packages, i
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) installed and available in your PATH
 
-### Installing the Installer
+### Option 1: Quick Install (Recommended for Users)
 
-The installer itself is a PEP723 script, so you can run it directly with `uv run`:
+Install `uvs` as a command-line tool:
+
+```bash
+uv tool install https://github.com/your-repo/uvs.git
+```
+
+Now you can use `uvs` directly:
+
+```bash
+uvs --help
+```
+
+### Option 2: Development Setup
+
+For contributors or those who want to modify `uvs`:
 
 ```bash
 # Clone this repository
 git clone https://github.com/your-repo/uvs.git
 cd uvs
 
-# The installer is ready to use with uv run
+# Run the installer directly
 uv run scripts/uvs.py --help
 ```
 
@@ -45,7 +59,7 @@ uv run scripts/uvs.py --help
 2. Install it as a command-line tool:
 
 ```bash
-uv run scripts/uvs.py your-script.py
+uvs your-script.py
 ```
 
 3. Use your new command:
@@ -57,7 +71,7 @@ your-script
 4. Find the source of an installed tool:
 
 ```bash
-uv run scripts/uvs.py --which your-script
+uvs --which your-script
 ```
 
 ## Architecture
@@ -75,7 +89,7 @@ The tool works by:
 
 ### Registry
 
-The tool maintains a registry in `.uv-scripts-registry.json` that tracks:
+The tool maintains a registry in `.uvs-registry.json` that tracks:
 - Tool name and source file path
 - Source file hash for change detection
 - Installation timestamp and version
@@ -84,7 +98,7 @@ The tool maintains a registry in `.uv-scripts-registry.json` that tracks:
 ## Usage
 
 ```bash
-uv run scripts/uvs.py [OPTIONS] <script-or-dir>
+uvs [OPTIONS] <script-or-dir>
 ```
 
 ### Options
@@ -104,19 +118,19 @@ uv run scripts/uvs.py [OPTIONS] <script-or-dir>
 
 ```bash
 # Dry run to inspect generated package
-uv run scripts/uvs.py --dry-run example.py
+uvs --dry-run example.py
 
 # Install with custom name
-uv run scripts/uvs.py --name my-tool example.py
+uvs --name my-tool example.py
 
 # Update an existing installation
-uv run scripts/uvs.py --update example.py
+uvs --update example.py
 
 # Install all scripts in a directory
-uv run scripts/uvs.py --all ./scripts/
+uvs --all ./scripts/
 
 # List all installed scripts
-uv run scripts/uvs.py --list
+uvs --list
 ```
 
 ## Design Decisions
@@ -130,7 +144,7 @@ The tool generates packages in a temporary directory by default. This approach:
 
 ### Registry Location
 
-The registry is stored in the current working directory as `.uv-scripts-registry.json`. This:
+The registry is stored in the current working directory as `.uvs-registry.json`. This:
 - Makes the registry project-local
 - Allows different projects to maintain separate registries
 - Simplifies permissions and access control
