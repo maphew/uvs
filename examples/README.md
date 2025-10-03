@@ -148,6 +148,8 @@ if __name__ == "__main__":
     main()
 ```
 
+See [PEP 723](https://peps.python.org/pep-0723/) for complete inline metadata specification.
+
 ## Best Practices
 
 1. **Dependency Management**: Specify exact or minimum versions for dependencies
@@ -164,7 +166,7 @@ If you encounter issues with the examples:
 1. Check that you have the latest version of `uv` installed
 2. Ensure all dependencies in the PEP723 header are available
 3. Use `--dry-run` to inspect the generated package before installation
-4. Check the `.uv-scripts-registry.json` file for installation records
+4. Check the `.uvs-registry.json` file for installation records
 5. Use `uv tool list` to see what tools are currently installed
 
 ## Contributing

@@ -1,11 +1,5 @@
 # To do
 
-- rename the project to something more workable. Top candidates:
-  
-  - `uvs` - uv single-file scripts as tools. Harmonizes with standard `uvx` alias for `uv tool`
-  - `uvone` - uv one-file
-  - `luv` - don't know what the L is, but the name is just begging to be used. 'Local' maybe? Anyway, save for project that fits.
-
 ## Structure
 
 - install registry needs to be in a standard ~/.config or %appdata% location instead of relative to where command was run from
@@ -32,3 +26,11 @@
 ## Docs
 
 - Review @/scripts/README.md with an eye to making concise. It currently contains things which are documented elsewhere, for example the structure of PEP723 metadata. Refer to authoritative upstream docs instead of repeating here.
+
+# COMPLETE
+
+- [x] rename the project to something more workable. Top candidates:
+  
+  - [X] `uvs` - uv single-file scripts as tools. Harmonizes with standard `uvx` alias for `uv tool`
+  - discarded:  `uvone` - uv one-file
+  - discarded: `luv` - don't know what the L is, but the name is just begging to be used. 'Local' maybe? Anyway, save for project that fits.

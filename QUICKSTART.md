@@ -4,7 +4,6 @@ Get up and running with `uvs` in minutes! This guide will walk you through insta
 
 ## Prerequisites
 
-- Python 3.8 or higher
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) installed and available in your PATH
 
 ## Installation Steps
@@ -28,20 +27,7 @@ You should see the help output showing all available options.
 
 ### 1. Create a Simple Script
 
-Create a file named `my-tool.py` with the following content:
-
-```python
-# /// script
-# requires-python = ">=3.8"
-# dependencies = []
-# ///
-
-def main():
-    print("Hello from my tool!")
-
-if __name__ == "__main__":
-    main()
-```
+Create a file named `my-tool.py` with [PEP 723](https://peps.python.org/pep-0723/) inline metadata.
 
 ### 2. Install Your Script
 
@@ -72,29 +58,7 @@ Hello from my tool!
 
 ### 1. Create a Script with Dependencies
 
-Create a file named `api-check.py` with the following content:
-
-```python
-# /// script
-# requires-python = ">=3.8"
-# dependencies = ["requests"]
-# ///
-
-import requests
-import sys
-
-def main():
-    try:
-        response = requests.get("https://httpbin.org/json", timeout=5)
-        print(f"Status: {response.status_code}")
-        print(f"Response: {response.json()}")
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
-
-if __name__ == "__main__":
-    main()
-```
+Create a file named `api-check.py` with [PEP 723](https://peps.python.org/pep-0723/) inline metadata including `requests` as a dependency.
 
 ### 2. Install the Script
 
@@ -185,7 +149,7 @@ uv run scripts/uvs.py --dry-run my-tool.py
 
 ### Workflow 1: Developing a Script
 
-1. Create your script with PEP723 header
+1. Create your script with [PEP 723](https://peps.python.org/pep-0723/) inline metadata
 2. Test it directly: `uv run my-script.py`
 3. Install it: `uv run scripts/uvs.py my-script.py`
 4. Test the installed command: `my-script`
@@ -193,7 +157,7 @@ uv run scripts/uvs.py --dry-run my-tool.py
 
 ### Workflow 2: Sharing a Script
 
-1. Create your script with comprehensive PEP723 metadata
+1. Create your script with comprehensive [PEP 723](https://peps.python.org/pep-0723/) metadata
 2. Test it thoroughly
 3. Share the script file with others
 4. Others can install it with: `uv run scripts/uvs.py path/to/script.py`
@@ -221,14 +185,14 @@ ls -la my-script.py
 ### "uv tool install failed"
 
 1. Check that your script has a `main()` function
-2. Verify all dependencies are correctly specified in the PEP723 header
+2. Verify all dependencies are correctly specified in the [PEP 723](https://peps.python.org/pep-0723/) metadata
 3. Use `--dry-run` to inspect the generated package
 
 ### "Permission denied"
 
 Check write permissions for the current directory (needed for the registry file):
 ```bash
-ls -la .uv-scripts-registry.json
+ls -la .uvs-registry.json
 ```
 
 ## Next Steps
@@ -236,39 +200,3 @@ ls -la .uv-scripts-registry.json
 - Explore the [examples directory](examples/) for more complex scripts
 - Read the [main documentation](README.md) for advanced features
 - Check the [installer documentation](scripts/README.md) for detailed options
-
-## Copy-Paste Ready Commands
-
-```bash
-# Install the installer (clone the repo first)
-git clone https://github.com/your-repo/uvs.git
-cd uvs
-
-# Create and install a simple script
-cat > hello.py << 'EOF'
-# /// script
-# requires-python = ">=3.8"
-# dependencies = []
-# ///
-
-def main():
-    print("Hello from uvs!")
-
-if __name__ == "__main__":
-    main()
-EOF
-
-uv run scripts/uvs.py hello.py
-hello
-
-# List installed tools
-uv run scripts/uvs.py --list
-
-# Find source of a tool
-uv run scripts/uvs.py --which hello
-
-# Update the tool
-uv run scripts/uvs.py --update hello.py
-
-# Uninstall the tool
-uv tool uninstall hello

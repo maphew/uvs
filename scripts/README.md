@@ -11,7 +11,7 @@ This repository includes an example single-file script at [`uvs-example.py`](uvs
 - Parses a small PEP723-style header block from the script.
 - Generates a temporary package directory with `pyproject.toml` and `src/<module>/__init__.py`.
 - Calls `uv tool install` on the generated package.
-- Records installs in a project-local registry file [`.uv-scripts-registry.json`](.uv-scripts-registry.json).
+- Records installs in a project-local registry file [`.uvs-registry.json`](.uvs-registry.json).
 
 This is useful for authoring single-file utilities and installing them without manually creating a package.
 
@@ -43,7 +43,7 @@ Running: uv tool install /tmp/uvs-abc123/uvs-single
 Installed 'uvs-single' from /full/path/to/uvs-example.py
 ```
 
-After a successful install the local registry file [`.uv-scripts-registry.json`](.uv-scripts-registry.json) is updated.
+After a successful install the local registry file [`.uvs-registry.json`](.uvs-registry.json) is updated.
 
 ## Usage
 
@@ -68,7 +68,7 @@ Flags
   - Example: `uv run  scripts/uvs.py --all .`
 
 - `--list`
-  - Print the entries in the local registry [`.uv-scripts-registry.json`](.uv-scripts-registry.json) and exit.
+  - Print the entries in the local registry [`.uvs-registry.json`](.uvs-registry.json) and exit.
   - Example output:
     ```
     uvs-single    <- /full/path/to/uvs-example.py (version: 0.1.0)
@@ -99,25 +99,11 @@ Flags
 - `--python <specifier>`
   - Forwarded to `uv tool install --python ...`. Use to select the Python interpreter/version used by `uv` when installing.
 
-## PEP723 header format (what the tool reads)
+## PEP 723 Support
 
-`uvs` looks for a small header block between a `# /// script` marker and a subsequent `# ///` closing marker. Inside that block it expects simple assignments similar to PEP723 metadata. The minimal example (from [`uvs-example.py`](uvs-example.py)):
+`uvs` reads [PEP 723](https://peps.python.org/pep-0723/) inline script metadata to extract dependency and Python version requirements. See [`uvs-example.py`](uvs-example.py) for a complete example.
 
-```
-# /// script
-# requires-python = ">=3.13"
-# dependencies = []
-# ///
-```
-
-Keys parsed:
-
-- `requires-python` (string) — example: `"^3.10"` or `">=3.13"`. The value is copied into the generated `pyproject.toml` under `requires-python` (if present).
-- `dependencies` (list) — example: `["requests>=2.0"]` or `[]`. Values are placed into `project.dependencies` in the generated `pyproject.toml`.
-
-The parser is permissive: it strips leading `#` and whitespace and uses Python literal parsing for simple lists/strings. If the header is missing, defaults are used (no requires-python and no dependencies).
-
-The header block must begin with a line that starts with `# /// script` and finish at the next line starting with `# ///`.
+The tool supports the standard `requires-python` and `dependencies` fields from PEP 723. If no metadata is present, sensible defaults are used.
 
 ## How the generated package looks
 
@@ -148,7 +134,7 @@ Embedded metadata:
   - `generated_at`
   - `generator`
 
-The registry file [`.uv-scripts-registry.json`](.uv-scripts-registry.json) is written in the current working directory (project-local). Each installed script is recorded under `scripts` with entries like:
+The registry file [`.uvs-registry.json`](.uvs-registry.json) is written in the current working directory (project-local). Each installed script is recorded under `scripts` with entries like:
 
 - `tool_name`
 - `source_path` (absolute)
@@ -164,12 +150,12 @@ To find where a recorded tool came from, use:
 uv run  scripts/uvs.py --which <tool-name>
 ```
 
-This prints the `source_path` recorded in [`.uv-scripts-registry.json`](.uv-scripts-registry.json).
+This prints the `source_path` recorded in [`.uvs-registry.json`](.uvs-registry.json).
 
 You can also inspect the registry directly:
 
 ```
-cat .uv-scripts-registry.json
+cat .uvs-registry.json
 ```
 
 ## Uninstalling
@@ -180,7 +166,7 @@ Because the installer generates a standard package and installs it with `uv tool
 uv tool uninstall <tool-name>
 ```
 
-The registry is not automatically purged by `uv`—you can manually edit or remove [`.uv-scripts-registry.json`](.uv-scripts-registry.json) if you want to remove the record.
+The registry is not automatically purged by `uv`—you can manually edit or remove [`.uvs-registry.json`](.uvs-registry.json) if you want to remove the record.
 
 ## Troubleshooting / common failure modes
 
@@ -189,7 +175,7 @@ The registry is not automatically purged by `uv`—you can manually edit or remo
 - Incompatible `requires-python` — if the header specifies `requires-python` that doesn't match the environment used by `uv` or the target interpreter, installation may fail. Use `--python` to select a compatible interpreter or remove/adjust `requires-python`.
 - `uv` not installed or not on PATH — the tool invokes `uv tool install`. Ensure `uv` is installed and available in your shell.
 - Permission issues during install — if `uv tool install` needs elevated permissions (system-level installs), you may need to run under an environment where you have permissions, use virtual environments, or use `--editable` to avoid global installs.
-- Registry write failure — the tool attempts to write `.uv-scripts-registry.json` in the current directory. If that fails (permissions, read-only FS), the tool prints a warning but the install may still succeed.
+- Registry write failure — the tool attempts to write `.uvs-registry.json` in the current directory. If that fails (permissions, read-only FS), the tool prints a warning but the install may still succeed.
 - Editable install failures — `--editable` has known limitations and may not work as expected (see below).
 
 ## Editable Install Limitations
@@ -268,7 +254,7 @@ uv run  scripts/uvs.py --update uvs-example.py
 
 ## Registry example (anonymized)
 
-A small example of what [`.uv-scripts-registry.json`](.uv-scripts-registry.json) might contain after installs:
+A small example of what [`.uvs-registry.json`](.uvs-registry.json) might contain after installs:
 
 ```json
 {
@@ -320,4 +306,4 @@ Contributions are welcome. Open a PR against this repository and include tests a
 File references in this README:
 - Installer script: [`scripts/uvs.py`](scripts/uvs.py)
 - Example single-file script: [`uvs-example.py`](uvs-example.py)
-- Registry file: [`.uv-scripts-registry.json`](.uv-scripts-registry.json)
+- Registry file: [`.uvs-registry.json`](.uvs-registry.json)

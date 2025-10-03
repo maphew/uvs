@@ -23,7 +23,6 @@ While `uv` provides excellent tool management for traditional Python packages, i
 
 ### Prerequisites
 
-- Python 3.8 or higher
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) installed and available in your PATH
 
 ### Installing the Installer
@@ -41,24 +40,7 @@ uv run scripts/uvs.py --help
 
 ## Quick Start
 
-1. Create a single-file script with a PEP723 header (see [`uvs-example.py`](uvs-example.py) for an example):
-
-```python
-# /// script
-# requires-python = ">=3.8"
-# dependencies = ["requests"]
-# ///
-
-import requests
-import sys
-
-def main():
-    response = requests.get("https://httpbin.org/json")
-    print(response.json())
-
-if __name__ == "__main__":
-    main()
-```
+1. Create a single-file script with [PEP 723](https://peps.python.org/pep-0723/) inline metadata (see [`uvs-example.py`](uvs-example.py) for an example).
 
 2. Install it as a command-line tool:
 
@@ -227,7 +209,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - Installer script: [`scripts/uvs.py`](scripts/uvs.py)
 - Example script: [`uvs-example.py`](uvs-example.py)
-- Registry file: [`.uv-scripts-registry.json`](.uv-scripts-registry.json)
+- Registry file: [`.uvs-registry.json`](.uvs-registry.json)
 - Detailed documentation: [`scripts/README.md`](scripts/README.md)
 - Quick start guide: [`QUICKSTART.md`](QUICKSTART.md)
 - Examples: [`examples/`](examples/)
