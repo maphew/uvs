@@ -197,16 +197,23 @@ Contributions are welcome! Please:
 
 ### Development Setup
 
+For contributors or those who want to modify `uvs`:
+
 ```bash
-# Clone the repository
+# Clone the Repository
 git clone https://github.com/your-repo/uvs.git
+
+# place uvs in PATH in editable mode
+uv tool install --editable uvs
+
+# verify available
+uvs --help
+
 cd uvs
+# hack, hack, ...
 
-# Run the installer directly
-uv run scripts/uvs.py --help
-
-# Run tests (if available)
-uv run pytest tests/
+# Run tests
+uv run pytest
 ```
 
 ## Related Projects
@@ -221,9 +228,9 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## File References
 
-- Installer script: [`scripts/uvs.py`](scripts/uvs.py)
+- Installer script: [`src/uvs/uvs.py`](src/uvs/uvs.py)
 - Example script: [`uvs-example.py`](uvs-example.py)
 - Registry file: [`.uvs-registry.json`](.uvs-registry.json)
-- Detailed documentation: [`scripts/README.md`](scripts/README.md)
+- Detailed documentation: [`README.md`](README.md)
 - Quick start guide: [`QUICKSTART.md`](QUICKSTART.md)
 - Examples: [`examples/`](examples/)

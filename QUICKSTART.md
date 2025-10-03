@@ -6,7 +6,7 @@ Get up and running with `uvs` in minutes! This guide will walk you through insta
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) installed and available in your PATH
 
-## Option 1: Quick Install (Recommended for Users)
+## Install
 
 Install `uvs` as a command-line tool:
 
@@ -18,25 +18,6 @@ Now you can use `uvs` directly:
 
 ```bash
 uvs --help
-```
-
-## Option 2: Development Setup
-
-For contributors or those who want to modify `uvs`:
-
-```bash
-# Clone the Repository
-git clone https://github.com/your-repo/uvs.git
-
-# place in PATH in editable mode
-uv tool install --editable uvs
-
-# verify available
-uvs --help
-
-# start hacking
-cd uvs
-# ...etc.
 ```
 
 ## Your First Installation
