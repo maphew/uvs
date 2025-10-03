@@ -196,3 +196,14 @@ ls -la .uvs-registry.json
 
 - Explore the [examples directory](examples/) for more complex scripts
 - [Readme-full](Readme-full.md) for extended docs
+
+
+## Contributors
+
+### v0.1.0
+
+Initial idea, development, and LLM wrangling: matt wilkie @maphewyk, maphew@gmail.com.
+
+IDE and AI orchestration: Kilo Code
+
+LLM assistants: Claude Sonnet 4.5 (architecture), GLM 4.6 (code backbone), GPT5-Mini (docs), Grok Code Fast 1 (implementation, testing)
