@@ -1,0 +1,282 @@
+# uv-script-install
+
+Minimal installer that converts a single-file PEP723-style script into a temporary package and runs `uv tool install` on it.
+
+This repository includes an example single-file script at [`uv-single.py`](uv-single.py) and the installer at [`scripts/uv-script-install.py`](scripts/uv-script-install.py).
+
+## Purpose
+
+`uv-script-install` makes it easy to take a self-contained single-file PEP723-style Python script and install it as a normal command-line tool using `uv tool install`. It:
+
+- Parses a small PEP723-style header block from the script.
+- Generates a temporary package directory with `pyproject.toml` and `src/<module>/__init__.py`.
+- Calls `uv tool install` on the generated package.
+- Records installs in a project-local registry file [`.uv-scripts-registry.json`](.uv-scripts-registry.json).
+
+This is useful for authoring single-file utilities and installing them without manually creating a package.
+
+## Quickstart
+
+Dry-run (generate package but do not call `uv`):
+
+```
+uv run  scripts/uv-script-install.py --dry-run uv-single.py
+```
+
+Sample dry-run output (illustrative):
+
+```
+Generated package at: /tmp/uv-script-install-abc123/uv-single
+```
+
+Real install:
+
+```
+uv run  scripts/uv-script-install.py v-single.py
+```
+
+Sample successful output (illustrative):
+
+```
+Generated package at: /tmp/uv-script-install-abc123/uv-single
+Running: uv tool install /tmp/uv-script-install-abc123/uv-single
+Installed 'uv-single' from /full/path/to/uv-single.py
+```
+
+After a successful install the local registry file [`.uv-scripts-registry.json`](.uv-scripts-registry.json) is updated.
+
+## Usage
+
+Run the installer script (example):
+
+```
+uv run  scripts/uv-script-install.py [OPTIONS] <script-or-dir>
+```
+
+Flags
+
+- `--dry-run`
+  - Do not invoke `uv tool install`. The tool will generate the package layout and print the package path then exit.
+  - Useful for inspection and debugging.
+
+- `--editable`
+  - Pass `-e` to `uv tool install` to attempt an editable install (i.e., `uv tool install -e <pkg>`).
+  - Editable installs depend on `uv` and the underlying installer support.
+
+- `--all`
+  - When provided, install all `.py` files in the given directory (or current directory if no script/directory argument).
+  - Example: `uv run  scripts/uv-script-install.py --all .`
+
+- `--list`
+  - Print the entries in the local registry [`.uv-scripts-registry.json`](.uv-scripts-registry.json) and exit.
+  - Example output:
+    ```
+    uv-single    <- /full/path/to/uv-single.py (version: 0.1.0)
+    ```
+
+- `--which <tool>`
+  - Show the recorded source path for an installed tool name from the local registry.
+  - Example:
+    ```
+    uv run  scripts/uv-script-install.py --which uv-single
+    # prints: /full/path/to/uv-single.py
+    ```
+
+- `--update`
+  - If a registry entry exists, `--update` compares the source file hash and, if changed, bumps the patch version (e.g., 0.1.0 -> 0.1.1) and reinstalls.
+  - If no change is detected, the existing version is reused/reinstalled.
+
+- `--name`, `-n <name>`
+  - Override the derived CLI/tool name. By default the installer derives name from the script filename (underscores -> hyphens for CLI name).
+  - Example: `--name my-cool-tool` will produce an installed CLI `my-cool-tool`.
+
+- `--version`, `-v <version>`
+  - Initial package version when generating `pyproject.toml`. Default: `0.1.0`.
+
+- `--tempdir <path>`
+  - Directory where the temporary package will be generated. By default a system temporary directory is used (e.g., `/tmp/uv-script-install-...`).
+
+- `--python <specifier>`
+  - Forwarded to `uv tool install --python ...`. Use to select the Python interpreter/version used by `uv` when installing.
+
+## PEP723 header format (what the tool reads)
+
+`uv-script-install` looks for a small header block between a `# /// script` marker and a subsequent `# ///` closing marker. Inside that block it expects simple assignments similar to PEP723 metadata. The minimal example (from [`uv-single.py`](uv-single.py)):
+
+```
+# /// script
+# requires-python = ">=3.13"
+# dependencies = []
+# ///
+```
+
+Keys parsed:
+
+- `requires-python` (string) — example: `"^3.10"` or `">=3.13"`. The value is copied into the generated `pyproject.toml` under `requires-python` (if present).
+- `dependencies` (list) — example: `["requests>=2.0"]` or `[]`. Values are placed into `project.dependencies` in the generated `pyproject.toml`.
+
+The parser is permissive: it strips leading `#` and whitespace and uses Python literal parsing for simple lists/strings. If the header is missing, defaults are used (no requires-python and no dependencies).
+
+The header block must begin with a line that starts with `# /// script` and finish at the next line starting with `# ///`.
+
+## How the generated package looks
+
+When the installer runs it generates a temporary package directory with this minimal layout:
+
+- /tmp/.../my-tool/               <-- package directory generated by the tool
+  - pyproject.toml                <-- contains project metadata and [tool.uv-script-install] metadata
+  - README.md                     <-- generated README for the package
+  - src/
+    - my_tool/                    <-- module name (hyphens converted to underscores)
+      - __init__.py               <-- the original script body (header + __main__ stripped)
+
+Example tree (illustrative):
+
+```
+/tmp/uv-script-install-abc123/uv-single
+├── pyproject.toml
+├── README.md
+└── src
+    └── uv_single
+        └── __init__.py
+```
+
+Embedded metadata:
+- `pyproject.toml` contains the normal `[project]` fields (name, version, description, dependencies) and a `[tool.uv-script-install]` section with:
+  - `source_path`
+  - `source_hash`
+  - `generated_at`
+  - `generator`
+
+The registry file [`.uv-scripts-registry.json`](.uv-scripts-registry.json) is written in the current working directory (project-local). Each installed script is recorded under `scripts` with entries like:
+
+- `tool_name`
+- `source_path` (absolute)
+- `source_hash`
+- `installed_at`
+- `version`
+
+## Finding the original source of an installed tool
+
+To find where a recorded tool came from, use:
+
+```
+uv run  scripts/uv-script-install.py --which <tool-name>
+```
+
+This prints the `source_path` recorded in [`.uv-scripts-registry.json`](.uv-scripts-registry.json).
+
+You can also inspect the registry directly:
+
+```
+cat .uv-scripts-registry.json
+```
+
+## Uninstalling
+
+Because the installer generates a standard package and installs it with `uv tool install`, uninstalling works normally via `uv`:
+
+```
+uv tool uninstall <tool-name>
+```
+
+The registry is not automatically purged by `uv`—you can manually edit or remove [`.uv-scripts-registry.json`](.uv-scripts-registry.json) if you want to remove the record.
+
+## Troubleshooting / common failure modes
+
+- "Script not found" — you passed a path that doesn't exist. Check the path, e.g. [`uv-single.py`](uv-single.py).
+- Missing `main()` — the generated package sets `project.scripts` entry to point to `<module>:main`. Ensure your script exposes a `def main(): ...`. If not, `uv` will fail at runtime.
+- Incompatible `requires-python` — if the header specifies `requires-python` that doesn't match the environment used by `uv` or the target interpreter, installation may fail. Use `--python` to select a compatible interpreter or remove/adjust `requires-python`.
+- `uv` not installed or not on PATH — the tool invokes `uv tool install`. Ensure `uv` is installed and available in your shell.
+- Permission issues during install — if `uv tool install` needs elevated permissions (system-level installs), you may need to run under an environment where you have permissions, use virtual environments, or use `--editable` to avoid global installs.
+- Registry write failure — the tool attempts to write `.uv-scripts-registry.json` in the current directory. If that fails (permissions, read-only FS), the tool prints a warning but the install may still succeed.
+- Editable install failures — `--editable` depends on installer/back-end support; editable semantics may vary.
+
+## Examples
+
+1) Dry-run (generate package only):
+
+```
+uv run  scripts/uv-script-install.py --dry-run uv-single.py
+```
+
+Output:
+
+```
+Generated package at: /tmp/uv-script-install-abc123/uv-single
+```
+
+2) Install and register:
+
+```
+uv run  scripts/uv-script-install.py uv-single.py
+```
+
+Output (example):
+
+```
+Generated package at: /tmp/uv-script-install-abc123/uv-single
+Running: uv tool install /tmp/uv-script-install-abc123/uv-single
+Installed 'uv-single' from /home/me/projects/uv-experiments/uv-single.py
+```
+
+3) List registered scripts:
+
+```
+uv run  scripts/uv-script-install.py --list
+```
+
+Output:
+
+```
+uv-single  <- /home/me/projects/uv-experiments/uv-single.py (version: 0.1.0)
+```
+
+4) Show source for a tool:
+
+```
+uv run  scripts/uv-script-install.py --which uv-single
+# prints: /home/me/projects/uv-experiments/uv-single.py
+```
+
+5) Update (bump patch and reinstall if changed):
+
+```
+uv run  scripts/uv-script-install.py --update uv-single.py
+```
+
+## Registry example (anonymized)
+
+A small example of what [`.uv-scripts-registry.json`](.uv-scripts-registry.json) might contain after installs:
+
+```json
+{
+  "version": "1.0",
+  "created_at": "2025-10-03T12:00:00+00:00",
+  "scripts": {
+    "uv-single": {
+      "tool_name": "uv-single",
+      "source_path": "/home/me/projects/uv-experiments/uv-single.py",
+      "source_hash": "d2b2f3b4...adf123",
+      "installed_at": "2025-10-03T12:01:00+00:00",
+      "version": "0.1.0"
+    }
+  }
+}
+```
+
+## Next steps / roadmap
+
+- Batch install UX: more controls for `--all` (include/exclude patterns).
+- Better editable-install experience and clearer messaging when `uv` does not support editable installs.
+- Support for additional PEP723 metadata in the header (license, authors, classifiers).
+- Option: auto-prune registry entries on uninstall.
+- Tests and CI to validate generated packages against a real `uv` install workflow.
+
+Contributions are welcome. Open a PR against this repository and include tests and examples demonstrating new behaviors.
+
+---
+File references in this README:
+- Installer script: [`scripts/uv-script-install.py`](scripts/uv-script-install.py)
+- Example single-file script: [`uv-single.py`](uv-single.py)
+- Registry file: [`.uv-scripts-registry.json`](.uv-scripts-registry.json)
