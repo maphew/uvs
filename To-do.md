@@ -15,15 +15,15 @@
 
 - Should show abs path instead of relative. This won't help someone find the source (pyproject.toml):
 
-    [tool.uv-script-install]
-    source_path = "../uv-single.py"
+    [tool.uvs]
+    source_path = "../uvs-example.py"
 
 - Description should come from docstring of the script. If there is no docstring, generate one from analysing what the script does.
  
     [project]
-    name = "uv-single"
+    name = "uvs-single"
     version = "0.1.0"
-    description = "Command-line tool from uv-single.py"
+    description = "Command-line tool from uvs-example.py"
 
 ## Features
 

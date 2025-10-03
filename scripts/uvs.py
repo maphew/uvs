@@ -4,7 +4,7 @@
 # dependencies = []
 # ///
 
-"""uv-script-install: transform a single-file PEP723 script into a package and run `uv tool install` on it.
+"""uvs: transform a single-file PEP723 script into a package and run `uv tool install` on it.
 
 Minimal, self-contained implementation of the core single-script installation behavior.
 """
@@ -150,11 +150,11 @@ dependencies = [
 [project.scripts]
 {tool_name} = "{module_name}:main"
 
-[tool.uv-script-install]
+[tool.uvs]
 source_path = "{source_path}"
 source_hash = "{source_hash}"
 generated_at = "{datetime.now(timezone.utc).isoformat()}"
-generator = "uv-script-install/0.1.0"
+generator = "uvs/0.1.0"
 
 [build-system]
 requires = ["uv_build>=0.8.22,<0.9.0"]
@@ -173,7 +173,7 @@ def generate_readme(tool_name: str, source_path: str, description: str) -> str:
 This package was generated from:
 - Source: `{source_path}`
 - Generated: {ts}
-- Generator: uv-script-install/0.1.0
+- Generator: uvs/0.1.0
 
 ## Usage
 ```
@@ -182,7 +182,7 @@ This package was generated from:
 
 To update:
 ```
-uv-script-install --update {source_path}
+uvs --update {source_path}
 ```
 """
 
@@ -221,7 +221,7 @@ def run_uv_install(pkg_path: Path, editable: bool = False, python: str | None = 
 
 
 def main_cli(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="uv-script-install", description="Install single-file PEP723 scripts via uv.")
+    ap = argparse.ArgumentParser(prog="uvs", description="Install single-file PEP723 scripts via uv.")
     ap.add_argument("script", type=Path, nargs="?", help="Path to the single-file script to install or a directory when used with --all.")
     ap.add_argument("--name", "-n", help="Override tool name (CLI name).")
     ap.add_argument("--version", "-v", default="0.1.0", help="Initial package version.")
@@ -321,7 +321,7 @@ def main_cli(argv: list[str] | None = None) -> int:
             base_tmp = Path(args.tempdir)
             base_tmp.mkdir(parents=True, exist_ok=True)
         else:
-            base_tmp = Path(tempfile.mkdtemp(prefix="uv-script-install-"))
+            base_tmp = Path(tempfile.mkdtemp(prefix="uvs-"))
     
         pkg_dir = write_package(base_tmp, cli_name, module_name, version, description, requires_python, dependencies, script_path, source_hash, script_body)
     

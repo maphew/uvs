@@ -1,10 +1,10 @@
-# uv-script-install: Install Single-File Python Scripts as CLI Tools
+# uvs: Install Single-File Python Scripts as CLI Tools
 
 A utility that transforms single-file PEP723-style Python scripts into installable packages using `uv tool install`, making them available as command-line tools.
 
 ## Overview
 
-`uv-script-install` bridges the gap between single-file Python scripts and the standard Python packaging ecosystem. It allows you to:
+`uvs` bridges the gap between single-file Python scripts and the standard Python packaging ecosystem. It allows you to:
 
 - Convert self-contained single-file scripts into proper Python packages
 - Install them as command-line tools using `uv tool install`
@@ -17,7 +17,7 @@ This is particularly useful for developers who prefer the simplicity of single-f
 
 While `uv` provides excellent tool management for traditional Python packages, it doesn't directly support installing single-file scripts as tools. The naive approach of `uv tool install --script foobar.py` doesn't work because `uv` expects a proper package structure.
 
-`uv-script-install` solves this by automatically generating the necessary package structure from a single-file script and then using `uv tool install` to install it.
+`uvs` solves this by automatically generating the necessary package structure from a single-file script and then using `uv tool install` to install it.
 
 ## Installation
 
@@ -32,16 +32,16 @@ The installer itself is a PEP723 script, so you can run it directly with `uv run
 
 ```bash
 # Clone this repository
-git clone https://github.com/your-repo/uv-script-install.git
-cd uv-script-install
+git clone https://github.com/your-repo/uvs.git
+cd uvs
 
 # The installer is ready to use with uv run
-uv run scripts/uv-script-install.py --help
+uv run scripts/uvs.py --help
 ```
 
 ## Quick Start
 
-1. Create a single-file script with a PEP723 header (see [`uv-single.py`](uv-single.py) for an example):
+1. Create a single-file script with a PEP723 header (see [`uvs-example.py`](uvs-example.py) for an example):
 
 ```python
 # /// script
@@ -63,7 +63,7 @@ if __name__ == "__main__":
 2. Install it as a command-line tool:
 
 ```bash
-uv run scripts/uv-script-install.py your-script.py
+uv run scripts/uvs.py your-script.py
 ```
 
 3. Use your new command:
@@ -75,7 +75,7 @@ your-script
 4. Find the source of an installed tool:
 
 ```bash
-uv run scripts/uv-script-install.py --which your-script
+uv run scripts/uvs.py --which your-script
 ```
 
 ## Architecture
@@ -102,7 +102,7 @@ The tool maintains a registry in `.uv-scripts-registry.json` that tracks:
 ## Usage
 
 ```bash
-uv run scripts/uv-script-install.py [OPTIONS] <script-or-dir>
+uv run scripts/uvs.py [OPTIONS] <script-or-dir>
 ```
 
 ### Options
@@ -122,19 +122,19 @@ uv run scripts/uv-script-install.py [OPTIONS] <script-or-dir>
 
 ```bash
 # Dry run to inspect generated package
-uv run scripts/uv-script-install.py --dry-run example.py
+uv run scripts/uvs.py --dry-run example.py
 
 # Install with custom name
-uv run scripts/uv-script-install.py --name my-tool example.py
+uv run scripts/uvs.py --name my-tool example.py
 
 # Update an existing installation
-uv run scripts/uv-script-install.py --update example.py
+uv run scripts/uvs.py --update example.py
 
 # Install all scripts in a directory
-uv run scripts/uv-script-install.py --all ./scripts/
+uv run scripts/uvs.py --all ./scripts/
 
 # List all installed scripts
-uv run scripts/uv-script-install.py --list
+uv run scripts/uvs.py --list
 ```
 
 ## Design Decisions
@@ -203,11 +203,11 @@ Contributions are welcome! Please:
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-repo/uv-script-install.git
-cd uv-script-install
+git clone https://github.com/your-repo/uvs.git
+cd uvs
 
 # Run the installer directly
-uv run scripts/uv-script-install.py --help
+uv run scripts/uvs.py --help
 
 # Run tests (if available)
 uv run pytest tests/
@@ -225,8 +225,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## File References
 
-- Installer script: [`scripts/uv-script-install.py`](scripts/uv-script-install.py)
-- Example script: [`uv-single.py`](uv-single.py)
+- Installer script: [`scripts/uvs.py`](scripts/uvs.py)
+- Example script: [`uvs-example.py`](uvs-example.py)
 - Registry file: [`.uv-scripts-registry.json`](.uv-scripts-registry.json)
 - Detailed documentation: [`scripts/README.md`](scripts/README.md)
 - Quick start guide: [`QUICKSTART.md`](QUICKSTART.md)

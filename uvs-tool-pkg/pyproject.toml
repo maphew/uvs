@@ -1,5 +1,5 @@
 [project]
-name = "uv-tool-pkg"
+name = "uvs-tool-pkg"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -10,7 +10,7 @@ requires-python = ">=3.13"
 dependencies = []
 
 [project.scripts]
-uv-tool-pkg = "uv_tool_pkg:main"
+uvs-tool-pkg = "uvs_tool_pkg:main"
 
 [build-system]
 requires = ["uv_build>=0.8.22,<0.9.0"]

@@ -19,10 +19,10 @@ Running `uv tool install .` in that folder will install a script to path called 
 
     > uv tool install -e uv-tool-pkg/
     Resolved 1 package in 1ms
-        Built uv-tool-pkg @ file:///var/home/matt/OneDrive/dev/uv-experiments/uv-tool-pkg
+        Built uv-tool-pkg @ file:///var/home/matt/OneDrive/dev/uvs/uv-tool-pkg
     Prepared 1 package in 13ms
     Installed 1 package in 6ms
-    + uv-tool-pkg==0.1.0 (from file:///var/home/matt/OneDrive/dev/uv-experiments/uv-tool-pkg)
+    + uv-tool-pkg==0.1.0 (from file:///var/home/matt/OneDrive/dev/uvs/uv-tool-pkg)
     Installed 1 executable: uv-tool-pkg
 
     > uv-tool-pkg 

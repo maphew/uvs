@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Get up and running with `uv-script-install` in minutes! This guide will walk you through installing single-file Python scripts as command-line tools.
+Get up and running with `uvs` in minutes! This guide will walk you through installing single-file Python scripts as command-line tools.
 
 ## Prerequisites
 
@@ -12,14 +12,14 @@ Get up and running with `uv-script-install` in minutes! This guide will walk you
 ### 1. Clone or Download the Project
 
 ```bash
-git clone https://github.com/your-repo/uv-script-install.git
-cd uv-script-install
+git clone https://github.com/your-repo/uvs.git
+cd uvs
 ```
 
 ### 2. Verify the Installer Works
 
 ```bash
-uv run scripts/uv-script-install.py --help
+uv run scripts/uvs.py --help
 ```
 
 You should see the help output showing all available options.
@@ -46,14 +46,14 @@ if __name__ == "__main__":
 ### 2. Install Your Script
 
 ```bash
-uv run scripts/uv-script-install.py my-tool.py
+uv run scripts/uvs.py my-tool.py
 ```
 
 You should see output similar to:
 
 ```
-Generated package at: /tmp/uv-script-install-abc123/my-tool
-Running: uv tool install /tmp/uv-script-install-abc123/my-tool
+Generated package at: /tmp/uvs-abc123/my-tool
+Running: uv tool install /tmp/uvs-abc123/my-tool
 Installed 'my-tool' from /path/to/my-tool.py
 ```
 
@@ -99,7 +99,7 @@ if __name__ == "__main__":
 ### 2. Install the Script
 
 ```bash
-uv run scripts/uv-script-install.py api-check.py
+uv run scripts/uvs.py api-check.py
 ```
 
 ### 3. Use the Tool
@@ -113,7 +113,7 @@ api-check
 ### List All Installed Tools
 
 ```bash
-uv run scripts/uv-script-install.py --list
+uv run scripts/uvs.py --list
 ```
 
 Output:
@@ -125,7 +125,7 @@ api-check    <- /path/to/api-check.py (version: 0.1.0)
 ### Find the Source of a Tool
 
 ```bash
-uv run scripts/uv-script-install.py --which my-tool
+uv run scripts/uvs.py --which my-tool
 ```
 
 Output:
@@ -139,7 +139,7 @@ Output:
 2. Reinstall with the `--update` flag:
 
 ```bash
-uv run scripts/uv-script-install.py --update my-tool.py
+uv run scripts/uvs.py --update my-tool.py
 ```
 
 The tool will detect changes and bump the version automatically.
@@ -157,7 +157,7 @@ uv tool uninstall my-tool
 Override the default tool name:
 
 ```bash
-uv run scripts/uv-script-install.py --name awesome-tool my-tool.py
+uv run scripts/uvs.py --name awesome-tool my-tool.py
 ```
 
 Now you can run it as:
@@ -170,7 +170,7 @@ awesome-tool
 Install all Python scripts in a directory:
 
 ```bash
-uv run scripts/uv-script-install.py --all ./scripts/
+uv run scripts/uvs.py --all ./scripts/
 ```
 
 ### Dry Run
@@ -178,7 +178,7 @@ uv run scripts/uv-script-install.py --all ./scripts/
 Inspect the generated package without installing:
 
 ```bash
-uv run scripts/uv-script-install.py --dry-run my-tool.py
+uv run scripts/uvs.py --dry-run my-tool.py
 ```
 
 ## Common Workflows
@@ -187,16 +187,16 @@ uv run scripts/uv-script-install.py --dry-run my-tool.py
 
 1. Create your script with PEP723 header
 2. Test it directly: `uv run my-script.py`
-3. Install it: `uv run scripts/uv-script-install.py my-script.py`
+3. Install it: `uv run scripts/uvs.py my-script.py`
 4. Test the installed command: `my-script`
-5. Iterate: make changes, then `uv run scripts/uv-script-install.py --update my-script.py`
+5. Iterate: make changes, then `uv run scripts/uvs.py --update my-script.py`
 
 ### Workflow 2: Sharing a Script
 
 1. Create your script with comprehensive PEP723 metadata
 2. Test it thoroughly
 3. Share the script file with others
-4. Others can install it with: `uv run scripts/uv-script-install.py path/to/script.py`
+4. Others can install it with: `uv run scripts/uvs.py path/to/script.py`
 
 ### Workflow 3: Managing a Collection
 
@@ -241,8 +241,8 @@ ls -la .uv-scripts-registry.json
 
 ```bash
 # Install the installer (clone the repo first)
-git clone https://github.com/your-repo/uv-script-install.git
-cd uv-script-install
+git clone https://github.com/your-repo/uvs.git
+cd uvs
 
 # Create and install a simple script
 cat > hello.py << 'EOF'
@@ -252,23 +252,23 @@ cat > hello.py << 'EOF'
 # ///
 
 def main():
-    print("Hello from uv-script-install!")
+    print("Hello from uvs!")
 
 if __name__ == "__main__":
     main()
 EOF
 
-uv run scripts/uv-script-install.py hello.py
+uv run scripts/uvs.py hello.py
 hello
 
 # List installed tools
-uv run scripts/uv-script-install.py --list
+uv run scripts/uvs.py --list
 
 # Find source of a tool
-uv run scripts/uv-script-install.py --which hello
+uv run scripts/uvs.py --which hello
 
 # Update the tool
-uv run scripts/uv-script-install.py --update hello.py
+uv run scripts/uvs.py --update hello.py
 
 # Uninstall the tool
 uv tool uninstall hello

@@ -1,6 +1,6 @@
-# Examples for uv-script-install
+# Examples for uvs
 
-This directory contains example scripts that demonstrate various features and use cases for `uv-script-install`.
+This directory contains example scripts that demonstrate various features and use cases for `uvs`.
 
 ## Examples
 
@@ -22,7 +22,7 @@ A sophisticated command-line tool that demonstrates how to create a full-feature
 
 **Installation:**
 ```bash
-uv run ../scripts/uv-script-install.py examples/complex-cli.py
+uv run ../scripts/uvs.py examples/complex-cli.py
 ```
 
 **Usage:**
@@ -68,7 +68,7 @@ Demonstrates comprehensive PEP723 metadata usage and advanced features in a sing
 
 **Installation:**
 ```bash
-uv run ../scripts/uv-script-install.py examples/advanced-pep723.py
+uv run ../scripts/uvs.py examples/advanced-pep723.py
 ```
 
 **Usage:**
@@ -93,7 +93,7 @@ To install any of these examples:
 1. Navigate to the project root directory
 2. Run the installer with the example script path:
    ```bash
-   uv run scripts/uv-script-install.py examples/complex-cli.py
+   uv run scripts/uvs.py examples/complex-cli.py
    ```
 3. The tool will be available in your PATH with the same name as the script (with underscores converted to hyphens)
 
@@ -109,12 +109,12 @@ uv tool uninstall advanced-pep723
 
 To see which tools you've installed from examples:
 ```bash
-uv run scripts/uv-script-install.py --list
+uv run scripts/uvs.py --list
 ```
 
 To find the source of a specific tool:
 ```bash
-uv run scripts/uv-script-install.py --which complex-cli
+uv run scripts/uvs.py --which complex-cli
 ```
 
 ## Creating Your Own Scripts
