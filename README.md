@@ -74,26 +74,35 @@ your-script
 uvs --which your-script
 ```
 
-## Architecture
+## How It Works
 
-The tool works by:
+`uvs` converts single-file Python scripts into installable packages:
 
-1. Parsing the PEP723 header from the source script
-2. Extracting the script body (removing the header and `if __name__ == "__main__"` block)
-3. Generating a temporary package structure with:
-   - `pyproject.toml` with project metadata
-   - `src/<module>/__init__.py` containing the script body
-   - `README.md` with installation information
-4. Running `uv tool install` on the generated package
-5. Recording the installation in a local registry file
+1. **Parse PEP 723 metadata** from the script header
+2. **Extract script body** (removing header and `if __name__ == "__main__"` block)
+3. **Generate package structure** with `pyproject.toml` and `src/<module>/__init__.py`
+4. **Run `uv tool install`** on the generated package
+5. **Track installations** in a local registry file
 
 ### Registry
 
-The tool maintains a registry in `.uvs-registry.json` that tracks:
-- Tool name and source file path
-- Source file hash for change detection
-- Installation timestamp and version
-- Metadata for updates and uninstalls
+Installations are tracked in `.uvs-registry.json` with tool names, source paths, hashes, and versions for reliable updates and management.
+
+### PEP 723 Support
+
+`uvs` reads [PEP 723](https://peps.python.org/pep-0723/) inline script metadata to extract dependency and Python version requirements. The tool supports the standard `requires-python` and `dependencies` fields. If no metadata is present, sensible defaults are used.
+
+### Package Generation
+
+Generated packages follow this structure:
+```
+my-tool/
+├── pyproject.toml    # Project metadata and dependencies
+├── README.md         # Installation info
+└── src/
+    └── my_tool/
+        └── __init__.py  # Script body as module
+```
 
 ## Usage
 
@@ -135,28 +144,14 @@ uvs --list
 
 ## Design Decisions
 
-### Temporary Package Generation
+### Temporary Packages
+Packages are generated in temporary directories by default to keep your original scripts as the single source of truth and avoid cluttering your project.
 
-The tool generates packages in a temporary directory by default. This approach:
-- Keeps the original script as the single source of truth
-- Avoids polluting the project directory with generated files
-- Simplifies the workflow for script authors
+### Local Registry
+The `.uvs-registry.json` file is stored in your current directory, making it project-specific and avoiding permission issues.
 
-### Registry Location
-
-The registry is stored in the current working directory as `.uvs-registry.json`. This:
-- Makes the registry project-local
-- Allows different projects to maintain separate registries
-- Simplifies permissions and access control
-
-### Editable Install Limitations
-
-Editable installs have significant limitations:
-- Changes to the source script are not automatically reflected
-- The installed tool points to the generated package, not the original script
-- Updates require re-running the installer
-
-For these reasons, editable installs are not recommended for most use cases.
+### Editable Installs Not Recommended
+Editable installs have significant limitations - changes to source scripts aren't automatically reflected, and updates require manual reinstallation. Use `--update` instead for iterative development.
 
 ## Troubleshooting
 
