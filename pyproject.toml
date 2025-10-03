@@ -1,0 +1,17 @@
+[project]
+name = "uvs"
+version = "0.1.0"
+description = "uvs transforms single-file self-contained Python scripts with PEP723-style metadata into installable packages using `uv tool install`, making them available as command-line tools."
+readme = "README.md"
+authors = [
+    { name = "maphew", email = "maphew@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+uvs = "uvs.uvs:main"
+
+[build-system]
+requires = ["uv_build>=0.8.22,<0.9.0"]
+build-backend = "uv_build"

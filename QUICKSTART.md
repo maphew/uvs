@@ -24,17 +24,19 @@ uvs --help
 
 For contributors or those who want to modify `uvs`:
 
-### 1. Clone the Repository
-
 ```bash
+# Clone the Repository
 git clone https://github.com/your-repo/uvs.git
+
+# place in PATH in editable mode
+uv tool install --editable uvs
+
+# verify available
+uvs --help
+
+# start hacking
 cd uvs
-```
-
-### 2. Run the Installer Directly
-
-```bash
-uv run scripts/uvs.py --help
+# ...etc.
 ```
 
 ## Your First Installation
