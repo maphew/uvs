@@ -32,7 +32,7 @@ Generated package at: /tmp/uv-script-install-abc123/uv-single
 Real install:
 
 ```
-uv run  scripts/uv-script-install.py v-single.py
+uv run  scripts/uv-script-install.py uv-single.py
 ```
 
 Sample successful output (illustrative):
@@ -61,7 +61,7 @@ Flags
 
 - `--editable`
   - Pass `-e` to `uv tool install` to attempt an editable install (i.e., `uv tool install -e <pkg>`).
-  - Editable installs depend on `uv` and the underlying installer support.
+  - **Important limitations**: Editable installs have significant limitations (see "Editable Install Limitations" section below).
 
 - `--all`
   - When provided, install all `.py` files in the given directory (or current directory if no script/directory argument).
@@ -190,7 +190,28 @@ The registry is not automatically purged by `uv`—you can manually edit or remo
 - `uv` not installed or not on PATH — the tool invokes `uv tool install`. Ensure `uv` is installed and available in your shell.
 - Permission issues during install — if `uv tool install` needs elevated permissions (system-level installs), you may need to run under an environment where you have permissions, use virtual environments, or use `--editable` to avoid global installs.
 - Registry write failure — the tool attempts to write `.uv-scripts-registry.json` in the current directory. If that fails (permissions, read-only FS), the tool prints a warning but the install may still succeed.
-- Editable install failures — `--editable` depends on installer/back-end support; editable semantics may vary.
+- Editable install failures — `--editable` has known limitations and may not work as expected (see below).
+
+## Editable Install Limitations
+
+**Important**: Editable installs (`--editable` flag) have significant limitations that make them unsuitable for most use cases:
+
+1. **No Live Updates**: Changes to your source script are **not** automatically reflected in the installed tool. The installed tool points to the generated package, not your original script.
+
+2. **Generated Package Dependency**: The editable install references the temporary generated package, not your source script directly. This breaks the expected "live update" behavior of traditional editable installs.
+
+3. **Update Required**: To reflect changes in your script, you must re-run the installer with the `--update` flag.
+
+4. **Temporary Directory Issues**: The generated package may be in a temporary directory that could be cleaned up by the system.
+
+**Recommendation**: Avoid using `--editable` for most workflows. Instead, use the `--update` flag when you've made changes to your script:
+
+```bash
+# After modifying your script
+uv run scripts/uv-script-install.py --update your-script.py
+```
+
+The `--editable` flag is retained for experimental use and may be improved in future versions.
 
 ## Examples
 
@@ -265,13 +286,33 @@ A small example of what [`.uv-scripts-registry.json`](.uv-scripts-registry.json)
 }
 ```
 
+## Latest Findings and Updates
+
+### Editable Install Analysis
+After thorough testing, we've determined that editable installs have fundamental limitations:
+- The editable install points to the generated package layout, not the original script
+- Changes to source scripts are not automatically reflected
+- This behavior is unsurmountable without significant additional complexity
+- The `--editable` flag is retained for experimental use but not recommended
+
+### Registry Improvements
+- The registry now stores absolute paths to source scripts for better reliability
+- Source hash comparison enables reliable change detection for updates
+- Version bumping is automated when using the `--update` flag
+
+### Package Generation
+- Generated packages now include comprehensive metadata in the `[tool.uv-script-install]` section
+- Source paths are stored as absolute paths for better traceability
+- Timestamps and generator version are recorded for debugging
+
 ## Next steps / roadmap
 
 - Batch install UX: more controls for `--all` (include/exclude patterns).
-- Better editable-install experience and clearer messaging when `uv` does not support editable installs.
+- Consider removing or improving editable install functionality.
 - Support for additional PEP723 metadata in the header (license, authors, classifiers).
 - Option: auto-prune registry entries on uninstall.
 - Tests and CI to validate generated packages against a real `uv` install workflow.
+- Global registry option (store in user home directory instead of project-local).
 
 Contributions are welcome. Open a PR against this repository and include tests and examples demonstrating new behaviors.
 

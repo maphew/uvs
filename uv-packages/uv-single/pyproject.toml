@@ -1,0 +1,22 @@
+[project]
+name = "uv-single"
+version = "0.1.0"
+description = "Command-line tool from uv-single.py"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    
+]
+
+[project.scripts]
+uv-single = "uv_single:main"
+
+[tool.uv-script-install]
+source_path = "uv-single.py"
+source_hash = "7125953411a8795ce5ce1106e8e79a416caa581af11b59134c5848d50a6af41f"
+generated_at = "2025-10-03T17:35:10.470969+00:00"
+generator = "uv-script-install/0.1.0"
+
+[build-system]
+requires = ["uv_build>=0.8.22,<0.9.0"]
+build-backend = "uv_build"

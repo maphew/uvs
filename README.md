@@ -1,62 +1,233 @@
-# UV tool install single-file scripts
+# uv-script-install: Install Single-File Python Scripts as CLI Tools
 
-How can I do the equivalent of `uv tool install foobar.py` on single file self-contained PEP723 scripts and then have foobar available as a general command?
+A utility that transforms single-file PEP723-style Python scripts into installable packages using `uv tool install`, making them available as command-line tools.
 
-The naive `uv tool install --script foobar.py` doesn't work. 
-Reading through UV docs and asking on Discord determines that installing single-file scripts is not a feature at present.
-So can we build a single-to-src tool that we can feed to uv and get the appearance as if uv supports it?
+## Overview
 
-## Context
+`uv-script-install` bridges the gap between single-file Python scripts and the standard Python packaging ecosystem. It allows you to:
 
-I have a dev folder where I keep and work on my single-file scripts, under source code control. Once I'm happy enough with the work I want to 'publish' the script to PATH, the same way I can with a  script using traditional source layout of `src/module/script.py`. Sure I can do this with a Makefile or similar, but that's a pain to manage and `uv tool install` is just so much nicer!
+- Convert self-contained single-file scripts into proper Python packages
+- Install them as command-line tools using `uv tool install`
+- Maintain a registry linking installed tools back to their source files
+- Update installed tools when their source changes
 
+This is particularly useful for developers who prefer the simplicity of single-file scripts but want the convenience of standard tool installation and management.
 
-## What works
+## Problem Statement
 
-`uv init --package uv-tool-pkg` - Creates `uv-tool-pkg/` hello world python project with a pyproject.toml and src layout.
+While `uv` provides excellent tool management for traditional Python packages, it doesn't directly support installing single-file scripts as tools. The naive approach of `uv tool install --script foobar.py` doesn't work because `uv` expects a proper package structure.
 
-Running `uv tool install .` in that folder will install a script to path called `uv-tool-pkg`:
+`uv-script-install` solves this by automatically generating the necessary package structure from a single-file script and then using `uv tool install` to install it.
 
-    > uv tool install -e uv-tool-pkg/
-    Resolved 1 package in 1ms
-        Built uv-tool-pkg @ file:///var/home/matt/OneDrive/dev/uv-experiments/uv-tool-pkg
-    Prepared 1 package in 13ms
-    Installed 1 package in 6ms
-    + uv-tool-pkg==0.1.0 (from file:///var/home/matt/OneDrive/dev/uv-experiments/uv-tool-pkg)
-    Installed 1 executable: uv-tool-pkg
+## Installation
 
-    > uv-tool-pkg 
-    Hello from uv-tool-pkg!
+### Prerequisites
 
+- Python 3.8 or higher
+- [uv](https://docs.astral.sh/uv/getting-started/installation/) installed and available in your PATH
 
-We want this same convenience, but applied to a self-contained single-file script:
+### Installing the Installer
 
-    uv init --script uv-single.py
+The installer itself is a PEP723 script, so you can run it directly with `uv run`:
 
+```bash
+# Clone this repository
+git clone https://github.com/your-repo/uv-script-install.git
+cd uv-script-install
 
-##  The Idea
+# The installer is ready to use with uv run
+uv run scripts/uv-script-install.py --help
+```
 
-Write a tool that will transform a single-file script into a package layout automatically and then uv tool install it.
+## Quick Start
 
+1. Create a single-file script with a PEP723 header (see [`uv-single.py`](uv-single.py) for an example):
 
-## Questions
+```python
+# /// script
+# requires-python = ">=3.8"
+# dependencies = ["requests"]
+# ///
 
-How to maintain the link back to the source single-file.py? Some weeks or months later we will want to work on this script and might not remember where this python tool in path came from.
+import requests
+import sys
 
-Will standard `uv tool uninstall` still work?
+def main():
+    response = requests.get("https://httpbin.org/json")
+    print(response.json())
 
-Can we make editable installs feasible? Likely not, but would be cool if could.
+if __name__ == "__main__":
+    main()
+```
 
-Assuming success on above, is this something we can contribute to uv?
+2. Install it as a command-line tool:
 
-How do we structure our collection of single-file scripts to make both developing them and installing them easily managed?
+```bash
+uv run scripts/uv-script-install.py your-script.py
+```
 
-Do we use a single pyproject.toml, and each script has it's own [project.scripts] entry? Or do we need to have per-script toml? (ugh, unless it's all behind the scenes and automatic)
+3. Use your new command:
 
+```bash
+your-script
+```
 
-## Reference material
+4. Find the source of an installed tool:
 
-LLM Agents: Use context7 mcp
+```bash
+uv run scripts/uv-script-install.py --which your-script
+```
 
-https://docs.astral.sh/uv/guides/scripts/
-https://docs.astral.sh/uv/guides/tools/
+## Architecture
+
+The tool works by:
+
+1. Parsing the PEP723 header from the source script
+2. Extracting the script body (removing the header and `if __name__ == "__main__"` block)
+3. Generating a temporary package structure with:
+   - `pyproject.toml` with project metadata
+   - `src/<module>/__init__.py` containing the script body
+   - `README.md` with installation information
+4. Running `uv tool install` on the generated package
+5. Recording the installation in a local registry file
+
+### Registry
+
+The tool maintains a registry in `.uv-scripts-registry.json` that tracks:
+- Tool name and source file path
+- Source file hash for change detection
+- Installation timestamp and version
+- Metadata for updates and uninstalls
+
+## Usage
+
+```bash
+uv run scripts/uv-script-install.py [OPTIONS] <script-or-dir>
+```
+
+### Options
+
+- `--dry-run`: Generate the package but don't install it
+- `--editable`: Attempt an editable install (limited functionality)
+- `--all`: Install all `.py` files in a directory
+- `--list`: List all registered scripts
+- `--which <tool>`: Show source path for an installed tool
+- `--update`: Update an installed tool if the source changed
+- `--name <name>`: Override the derived tool name
+- `--version <version>`: Set the initial package version
+- `--tempdir <path>`: Specify where to generate the package
+- `--python <specifier>`: Select Python version for installation
+
+### Examples
+
+```bash
+# Dry run to inspect generated package
+uv run scripts/uv-script-install.py --dry-run example.py
+
+# Install with custom name
+uv run scripts/uv-script-install.py --name my-tool example.py
+
+# Update an existing installation
+uv run scripts/uv-script-install.py --update example.py
+
+# Install all scripts in a directory
+uv run scripts/uv-script-install.py --all ./scripts/
+
+# List all installed scripts
+uv run scripts/uv-script-install.py --list
+```
+
+## Design Decisions
+
+### Temporary Package Generation
+
+The tool generates packages in a temporary directory by default. This approach:
+- Keeps the original script as the single source of truth
+- Avoids polluting the project directory with generated files
+- Simplifies the workflow for script authors
+
+### Registry Location
+
+The registry is stored in the current working directory as `.uv-scripts-registry.json`. This:
+- Makes the registry project-local
+- Allows different projects to maintain separate registries
+- Simplifies permissions and access control
+
+### Editable Install Limitations
+
+Editable installs have significant limitations:
+- Changes to the source script are not automatically reflected
+- The installed tool points to the generated package, not the original script
+- Updates require re-running the installer
+
+For these reasons, editable installs are not recommended for most use cases.
+
+## Troubleshooting
+
+### Common Issues
+
+1. **"Script not found"**
+   - Check that the script path is correct
+   - Use absolute paths if running from a different directory
+
+2. **"uv tool install failed"**
+   - Ensure `uv` is installed and in your PATH
+   - Check that the script has a proper `main()` function
+   - Verify the `requires-python` specification matches your environment
+
+3. **"Permission denied"**
+   - Check write permissions for the current directory (for the registry)
+   - Use `--tempdir` to specify a writable location for package generation
+
+4. **"Module not found" after installation**
+   - Ensure all dependencies are listed in the PEP723 header
+   - Check that the script exposes a `main()` function
+
+### Getting Help
+
+- Use `--dry-run` to inspect generated packages without installing
+- Check the registry file to see what's been installed
+- Use `uv tool list` to see what `uv` has installed
+
+## Contributing
+
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Update documentation as needed
+5. Submit a pull request
+
+### Development Setup
+
+```bash
+# Clone the repository
+git clone https://github.com/your-repo/uv-script-install.git
+cd uv-script-install
+
+# Run the installer directly
+uv run scripts/uv-script-install.py --help
+
+# Run tests (if available)
+uv run pytest tests/
+```
+
+## Related Projects
+
+- [uv](https://github.com/astral-sh/uv): The Python package installer and resolver
+- [PEP 723](https://peps.python.org/pep-0723/): Inline script metadata
+- [pipx](https://pipx.pypa.io/): Install and run Python applications in isolated environments
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## File References
+
+- Installer script: [`scripts/uv-script-install.py`](scripts/uv-script-install.py)
+- Example script: [`uv-single.py`](uv-single.py)
+- Registry file: [`.uv-scripts-registry.json`](.uv-scripts-registry.json)
+- Detailed documentation: [`scripts/README.md`](scripts/README.md)
+- Quick start guide: [`QUICKSTART.md`](QUICKSTART.md)
+- Examples: [`examples/`](examples/)

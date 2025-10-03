@@ -1,0 +1,13 @@
+{
+  "version": "1.0",
+  "created_at": "2025-10-03T16:29:07.355642+00:00",
+  "scripts": {
+    "uv-single": {
+      "tool_name": "uv-single",
+      "source_path": "/var/home/matt/OneDrive/dev/uv-experiments/uv-single.py",
+      "source_hash": "7125953411a8795ce5ce1106e8e79a416caa581af11b59134c5848d50a6af41f",
+      "installed_at": "2025-10-03T17:35:10.499355+00:00",
+      "version": "0.1.0"
+    }
+  }
+}
