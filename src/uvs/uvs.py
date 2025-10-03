@@ -1,4 +1,3 @@
-#! /usr/bin/env -S uv run --script
 # /// script
 # requires-python = ">=3.13"
 # dependencies = []
@@ -220,7 +219,7 @@ def run_uv_install(pkg_path: Path, editable: bool = False, python: str | None = 
     return subprocess.run(cmd).returncode
 
 
-def main_cli(argv: list[str] | None = None) -> int:
+def main() -> int:
     ap = argparse.ArgumentParser(prog="uvs", description="Install single-file PEP723 scripts via uv.")
     ap.add_argument("script", type=Path, nargs="?", help="Path to the single-file script to install or a directory when used with --all.")
     ap.add_argument("--name", "-n", help="Override tool name (CLI name).")
@@ -233,7 +232,7 @@ def main_cli(argv: list[str] | None = None) -> int:
     ap.add_argument("--which", help="Show source path for installed tool name.")
     ap.add_argument("--update", action="store_true", help="If installed and source changed, bump patch and reinstall.")
     ap.add_argument("--all", action="store_true", help="Install all .py scripts in the given directory (or current directory if none provided).")
-    args = ap.parse_args(argv)
+    args = ap.parse_args()
     
     registry_path = Path(".uv-scripts-registry.json")
     
@@ -383,7 +382,3 @@ def main_cli(argv: list[str] | None = None) -> int:
     
     # Fall back to single install when --all not used
     return handle_single_install(args.script)
-
-
-if __name__ == "__main__":
-    raise SystemExit(main_cli())

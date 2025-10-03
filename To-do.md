@@ -31,6 +31,8 @@
 
 - [x] rename the project to something more workable. Top candidates:
   
-  - [X] `uvs` - uv single-file scripts as tools. Harmonizes with standard `uvx` alias for `uv tool`
+  - [x] `uvs` - uv single-file scripts as tools. Harmonizes with standard `uvx` alias for `uv tool`
   - discarded:  `uvone` - uv one-file
   - discarded: `luv` - don't know what the L is, but the name is just begging to be used. 'Local' maybe? Anyway, save for project that fits.
+
+- [x] adjust pyproject.toml so that uvs itself is uv tool installable.
