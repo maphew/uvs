@@ -1,36 +1,17 @@
-# uvs: Install Single-File Python Scripts as CLI Tools
+# Quick Start Guide
 
-A utility that transforms single-file PEP723-style Python scripts into installable packages using `uv tool install`, making them available as command-line tools.
+Get up and running with `uvs` in minutes! This guide will walk you through installing single-file Python scripts as command-line tools.
 
-## Overview
-
-`uvs` bridges the gap between single-file Python scripts and the standard Python packaging ecosystem. It allows you to:
-
-- Convert self-contained single-file scripts into proper Python packages
-- Install them as command-line tools using `uv tool install`
-- Maintain a registry linking installed tools back to their source files
-- Update installed tools when their source changes
-
-This is particularly useful for developers who prefer the simplicity of single-file scripts but want the convenience of standard tool installation and management.
-
-## Problem Statement
-
-While `uv` provides excellent tool management for traditional Python packages, it doesn't directly support installing single-file scripts as tools. The naive approach of `uv tool install --script foobar.py` doesn't work because `uv` expects a proper package structure.
-
-`uvs` solves this by automatically generating the necessary package structure from a single-file script and then using `uv tool install` to install it.
-
-## Installation
-
-### Prerequisites
+## Prerequisites
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) installed and available in your PATH
 
-### Option 1: Quick Install (Recommended for Users)
+## Install
 
 Install `uvs` as a command-line tool:
 
 ```bash
-uv tool install https://github.com/your-repo/uvs.git
+uv tool install https://github.com/maphew/uvs.git
 ```
 
 Now you can use `uvs` directly:
@@ -39,193 +20,179 @@ Now you can use `uvs` directly:
 uvs --help
 ```
 
-### Option 2: Development Setup
+## Your First Installation
 
-For contributors or those who want to modify `uvs`:
+### 1. Create a Simple Script
 
-```bash
-# Clone this repository
-git clone https://github.com/your-repo/uvs.git
-cd uvs
+Create a file named `my-tool.py` with [PEP 723](https://peps.python.org/pep-0723/) inline metadata.
 
-# Run the installer directly
-uv run scripts/uvs.py --help
-```
-
-## Quick Start
-
-1. Create a single-file script with [PEP 723](https://peps.python.org/pep-0723/) inline metadata (see [`uvs-example.py`](uvs-example.py) for an example).
-
-2. Install it as a command-line tool:
+### 2. Install Your Script
 
 ```bash
-uvs your-script.py
+uvs my-tool.py
 ```
 
-3. Use your new command:
+You should see output similar to:
+
+```
+Generated package at: /tmp/uvs-abc123/my-tool
+Running: uv tool install /tmp/uvs-abc123/my-tool
+Installed 'my-tool' from /path/to/my-tool.py
+```
+
+### 3. Use Your New Command
 
 ```bash
-your-script
+my-tool
 ```
 
-4. Find the source of an installed tool:
+Output:
+```
+Hello from my tool!
+```
+
+## Working with Dependencies
+
+### 1. Create a Script with Dependencies
+
+Create a file named `api-check.py` with [PEP 723](https://peps.python.org/pep-0723/) inline metadata including `requests` as a dependency.
+
+### 2. Install the Script
 
 ```bash
-uvs --which your-script
+uvs api-check.py
 ```
 
-## How It Works
-
-`uvs` converts single-file Python scripts into installable packages:
-
-1. **Parse PEP 723 metadata** from the script header
-2. **Extract script body** (removing header and `if __name__ == "__main__"` block)
-3. **Generate package structure** with `pyproject.toml` and `src/<module>/__init__.py`
-4. **Run `uv tool install`** on the generated package
-5. **Track installations** in a local registry file
-
-### Registry
-
-Installations are tracked in `.uvs-registry.json` with tool names, source paths, hashes, and versions for reliable updates and management.
-
-### PEP 723 Support
-
-`uvs` reads [PEP 723](https://peps.python.org/pep-0723/) inline script metadata to extract dependency and Python version requirements. The tool supports the standard `requires-python` and `dependencies` fields. If no metadata is present, sensible defaults are used.
-
-### Package Generation
-
-Generated packages follow this structure:
-```
-my-tool/
-├── pyproject.toml    # Project metadata and dependencies
-├── README.md         # Installation info
-└── src/
-    └── my_tool/
-        └── __init__.py  # Script body as module
-```
-
-## Usage
+### 3. Use the Tool
 
 ```bash
-uvs [OPTIONS] <script-or-dir>
+api-check
 ```
 
-### Options
+## Managing Installed Tools
 
-- `--dry-run`: Generate the package but don't install it
-- `--editable`: Attempt an editable install (limited functionality)
-- `--all`: Install all `.py` files in a directory
-- `--list`: List all registered scripts
-- `--which <tool>`: Show source path for an installed tool
-- `--update`: Update an installed tool if the source changed
-- `--name <name>`: Override the derived tool name
-- `--version <version>`: Set the initial package version
-- `--tempdir <path>`: Specify where to generate the package
-- `--python <specifier>`: Select Python version for installation
-
-### Examples
+### List All Installed Tools
 
 ```bash
-# Dry run to inspect generated package
-uvs --dry-run example.py
-
-# Install with custom name
-uvs --name my-tool example.py
-
-# Update an existing installation
-uvs --update example.py
-
-# Install all scripts in a directory
-uvs --all ./scripts/
-
-# List all installed scripts
 uvs --list
 ```
 
-## Design Decisions
+Output:
+```
+my-tool      <- /path/to/my-tool.py (version: 0.1.0)
+api-check    <- /path/to/api-check.py (version: 0.1.0)
+```
 
-### Temporary Packages
-Packages are generated in temporary directories by default to keep your original scripts as the single source of truth and avoid cluttering your project.
+### Find the Source of a Tool
 
-### Local Registry
-The `.uvs-registry.json` file is stored in your current directory, making it project-specific and avoiding permission issues.
+```bash
+uvs --which my-tool
+```
 
-### Editable Installs Not Recommended
-Editable installs have significant limitations - changes to source scripts aren't automatically reflected, and updates require manual reinstallation. Use `--update` instead for iterative development.
+Output:
+```
+/path/to/my-tool.py
+```
+
+### Update a Tool
+
+1. Modify your script (e.g., change the print statement in `my-tool.py`)
+2. Reinstall with the `--update` flag:
+
+```bash
+uvs --update my-tool.py
+```
+
+The tool will detect changes and bump the version automatically.
+
+### Uninstall a Tool
+
+```bash
+uv tool uninstall my-tool
+```
+
+## Advanced Usage
+
+### Custom Tool Name
+
+Override the default tool name:
+
+```bash
+uvs --name awesome-tool my-tool.py
+```
+
+Now you can run it as:
+```bash
+awesome-tool
+```
+
+### Batch Installation
+
+Install all Python scripts in a directory:
+
+```bash
+uvs --all ./scripts/
+```
+
+### Dry Run
+
+Inspect the generated package without installing:
+
+```bash
+uvs --dry-run my-tool.py
+```
+
+## Common Workflows
+
+### Workflow 1: Developing a Script
+
+1. Create your script with [PEP 723](https://peps.python.org/pep-0723/) inline metadata
+2. Test it directly: `uv run my-script.py`
+3. Install it: `uvs my-script.py`
+4. Test the installed command: `my-script`
+5. Iterate: make changes, then `uvs --update my-script.py`
+
+### Workflow 2: Sharing a Script
+
+1. Create your script with comprehensive [PEP 723](https://peps.python.org/pep-0723/) metadata
+2. Test it thoroughly
+3. Share the script file with others
+4. Others can install it with: `uvs path/to/script.py`
+
+### Workflow 3: Managing a Collection
+
+1. Organize scripts in a directory
+2. Use `--all` to install all at once
+3. Use `--list` to see what's installed
+4. Use `--which` to find sources when needed
 
 ## Troubleshooting
 
-### Common Issues
+### "uv: command not found"
 
-1. **"Script not found"**
-   - Check that the script path is correct
-   - Use absolute paths if running from a different directory
+Install uv following the [official installation guide](https://docs.astral.sh/uv/getting-started/installation/).
 
-2. **"uv tool install failed"**
-   - Ensure `uv` is installed and in your PATH
-   - Check that the script has a proper `main()` function
-   - Verify the `requires-python` specification matches your environment
+### "Script not found"
 
-3. **"Permission denied"**
-   - Check write permissions for the current directory (for the registry)
-   - Use `--tempdir` to specify a writable location for package generation
-
-4. **"Module not found" after installation**
-   - Ensure all dependencies are listed in the PEP723 header
-   - Check that the script exposes a `main()` function
-
-### Getting Help
-
-- Use `--dry-run` to inspect generated packages without installing
-- Check the registry file to see what's been installed
-- Use `uv tool list` to see what `uv` has installed
-
-## Contributing
-
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Update documentation as needed
-5. Submit a pull request
-
-### Development Setup
-
-For contributors or those who want to modify `uvs`:
-
+Check that the script path is correct:
 ```bash
-# Clone the Repository
-git clone https://github.com/your-repo/uvs.git
-
-# place uvs in PATH in editable mode
-uv tool install --editable uvs
-
-# verify available
-uvs --help
-
-cd uvs
-# hack, hack, ...
-
-# Run tests
-uv run pytest
+ls -la my-script.py
 ```
 
-## Related Projects
+### "uv tool install failed"
 
-- [uv](https://github.com/astral-sh/uv): The Python package installer and resolver
-- [PEP 723](https://peps.python.org/pep-0723/): Inline script metadata
-- [pipx](https://pipx.pypa.io/): Install and run Python applications in isolated environments
+1. Check that your script has a `main()` function
+2. Verify all dependencies are correctly specified in the [PEP 723](https://peps.python.org/pep-0723/) metadata
+3. Use `--dry-run` to inspect the generated package
 
-## License
+### "Permission denied"
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+Check write permissions for the current directory (needed for the registry file):
+```bash
+ls -la .uvs-registry.json
+```
 
-## File References
+## Next Steps
 
-- Installer script: [`src/uvs/uvs.py`](src/uvs/uvs.py)
-- Example script: [`uvs-example.py`](uvs-example.py)
-- Registry file: [`.uvs-registry.json`](.uvs-registry.json)
-- Detailed documentation: [`README.md`](README.md)
-- Quick start guide: [`QUICKSTART.md`](QUICKSTART.md)
-- Examples: [`examples/`](examples/)
+- Explore the [examples directory](examples/) for more complex scripts
+- [Readme-full](Readme-full.md) for extended docs
