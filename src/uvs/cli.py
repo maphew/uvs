@@ -590,10 +590,20 @@ def install(ctx, script, name, version, editable, tempdir, python, dry_run, inst
         editable = config.get("install.editable", False)
     if not dry_run:
         dry_run = config.get("install.dry_run", False)
-    if not python:
-        python = config.get("default.python")
     if not tempdir:
         tempdir = config.get("default.tempdir")
+
+    # Check if script has requires-python before setting python from config
+    if not python:
+        if script:
+            script_path = Path(script)
+            header = parse_pep723_header(script_path)
+            requires_python_in_script = header.get("requires-python") or header.get("requires_python")
+            if not requires_python_in_script:
+                python = config.get("default.python")
+        else:
+            # For batch install, don't set python from config
+            pass
 
     if install_all:
         # Handle batch installation

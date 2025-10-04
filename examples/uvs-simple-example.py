@@ -5,7 +5,7 @@
 
 
 def main() -> None:
-    print("Hello from uvs-example.py!")
+    print("Hello from uvs-simple-example.py!")
 
 
 if __name__ == "__main__":
