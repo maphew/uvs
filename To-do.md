@@ -1,24 +1,8 @@
 # To do
 
-- verify all examples work
+- Add uninstall command - while `uv tool uninstall` works already, only uvs has the mapping of what it installed (`uvs list`).
+  - also `uninstall --all` 
 
-## Intermediate pyproject.toml
-
-- Should show abs path instead of relative. This won't help someone find the source (pyproject.toml):
-
-    [tool.uvs]
-    source_path = "../uvs-example.py"
-
-- Description should come from docstring of the script. If there is no docstring, generate one from analysing what the script does.
- 
-    [project]
-    name = "uvs-single"
-    version = "0.1.0"
-    description = "Command-line tool from uvs-example.py"
-
-## Features
-
-- Editable install doesn't work. Probably because the editable location of installed exe is the intermediate packaged layout and not the source script. This might be unsurmountable without adding unreasonable amount of extra code and scaffolding. Hide the feature for now. Later we can examine fully and determine whether to pull altogether.
 
 
 # COMPLETE
@@ -40,3 +24,9 @@
 - [x] add tests for user-facing behaviour
 
 - [x] verify configs are stored properly in home dirs, following standard convention -- using [platformdirs](https://platformdirs.readthedocs.io/en/latest/) instead of building our own.
+
+- [x] Should show abs path instead of relative. This won't help someone find the source
+
+- [x] Description should come from docstring of the script. If there is no docstring, generate one from analysing what the script does.
+
+- [x] verify all examples work
