@@ -1,5 +1,8 @@
 # To do
 
+- verify configs are stored properly in home dirs, following standard convention.
+- verify all examples work
+
 ## Intermediate pyproject.toml
 
 - Should show abs path instead of relative. This won't help someone find the source (pyproject.toml):

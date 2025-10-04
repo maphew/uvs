@@ -1,6 +1,6 @@
 # Quick Start Guide
 
-Get up and running with `uvs` in minutes! This guide will walk you through installing single-file Python scripts as command-line tools.
+How to use `uvs` to install single-file Python scripts as command-line tools.
 
 ## Prerequisites
 
@@ -24,12 +24,12 @@ uvs --help
 
 ### 1. Create a Simple Script
 
-Create a file named `my-tool.py` with [PEP 723](https://peps.python.org/pep-0723/) inline metadata.
+Create a file named `my-tool.py` with [PEP 723](https://peps.python.org/pep-0723/) inline metadata (see https://docs.astral.sh/uv/guides/scripts/#creating-a-python-script)
 
 ### 2. Install Your Script
 
 ```bash
-uvs my-tool.py
+uvs install my-tool.py
 ```
 
 You should see output similar to:
@@ -49,24 +49,6 @@ my-tool
 Output:
 ```
 Hello from my tool!
-```
-
-## Working with Dependencies
-
-### 1. Create a Script with Dependencies
-
-Create a file named `api-check.py` with [PEP 723](https://peps.python.org/pep-0723/) inline metadata including `requests` as a dependency.
-
-### 2. Install the Script
-
-```bash
-uvs api-check.py
-```
-
-### 3. Use the Tool
-
-```bash
-api-check
 ```
 
 ## Managing Installed Tools
@@ -144,27 +126,21 @@ uvs --dry-run my-tool.py
 
 ## Common Workflows
 
-### Workflow 1: Developing a Script
+### Developing a Script
 
-1. Create your script with [PEP 723](https://peps.python.org/pep-0723/) inline metadata
+1. Create your script with inline script metadata
 2. Test it directly: `uv run my-script.py`
 3. Install it: `uvs my-script.py`
 4. Test the installed command: `my-script`
 5. Iterate: make changes, then `uvs --update my-script.py`
 
-### Workflow 2: Sharing a Script
-
-1. Create your script with comprehensive [PEP 723](https://peps.python.org/pep-0723/) metadata
-2. Test it thoroughly
-3. Share the script file with others
-4. Others can install it with: `uvs path/to/script.py`
-
-### Workflow 3: Managing a Collection
+### Managing a Collection
 
 1. Organize scripts in a directory
 2. Use `--all` to install all at once
 3. Use `--list` to see what's installed
 4. Use `--which` to find sources when needed
+
 
 ## Troubleshooting
 
@@ -172,30 +148,19 @@ uvs --dry-run my-tool.py
 
 Install uv following the [official installation guide](https://docs.astral.sh/uv/getting-started/installation/).
 
-### "Script not found"
-
-Check that the script path is correct:
-```bash
-ls -la my-script.py
-```
 
 ### "uv tool install failed"
 
 1. Check that your script has a `main()` function
 2. Verify all dependencies are correctly specified in the [PEP 723](https://peps.python.org/pep-0723/) metadata
-3. Use `--dry-run` to inspect the generated package
+3. Verify script executes properly with `uv run myscript.py`
+4. Use `uvs --dry-run` to inspect the generated package
 
-### "Permission denied"
-
-Check write permissions for the current directory (needed for the registry file):
-```bash
-ls -la .uvs-registry.json
-```
 
 ## Next Steps
 
 - Explore the [examples directory](examples/) for more complex scripts
-- [Readme-full](Readme-full.md) for extended docs
+- [Readme-full](Readme-full.md) for extended docs adn development notes
 
 
 ## Contributors
