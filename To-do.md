@@ -1,6 +1,9 @@
 # To do
 
-- ...
+- `uvs uninstall --all` yields "Are you sure you want to uninstall all 3 tools? [y/N]:". It should list the tools.
+
+- stale registry: if tool is removed outside of uvs, uvs won't know. Running `uvs uninstall {tool}` will be told by uv the tool doesn't exist, and uvs automatically clean the registry. --> however `uvs uninstall --all` will not clean, only report the uv tool error.
+
 
 # COMPLETE
 
