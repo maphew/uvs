@@ -19,6 +19,8 @@ from typing import Optional
 
 import click
 import requests
+import rich
+import importlib.metadata
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -149,8 +151,8 @@ def info(width: int):
         ("Python", f"{sys.version.split()[0]}"),
         ("Terminal Width", str(width)),
         ("Requests", requests.__version__),
-        ("Click", click.__version__),
-        ("Rich", console.__version__),
+        ("Click", importlib.metadata.version("click")),
+        ("Rich", importlib.metadata.version("rich")),
     ]
     
     table = Table(title="System Information")
