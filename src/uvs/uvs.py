@@ -233,7 +233,7 @@ def bump_patch_version(ver: str) -> str:
 
 def get_registry_path() -> Path:
     """Get the registry file path."""
-    return Path(".uvs-registry.json")
+    return Path.home() / ".config" / "uvs" / "registry.json"
 
 
 def load_registry() -> dict:
@@ -250,6 +250,7 @@ def load_registry() -> dict:
 def save_registry(reg: dict) -> None:
     """Save the registry file."""
     registry_path = get_registry_path()
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(json.dumps(reg, indent=2), encoding="utf8")
 
 

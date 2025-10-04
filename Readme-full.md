@@ -86,7 +86,7 @@ uvs --which your-script
 
 ### Registry
 
-Installations are tracked in `.uvs-registry.json` with tool names, source paths, hashes, and versions for reliable updates and management.
+Installations are tracked in `~/.config/uvs/registry.json` with tool names, source paths, hashes, and versions for reliable updates and management.
 
 ### PEP 723 Support
 
@@ -147,8 +147,8 @@ uvs list
 ### Temporary Packages
 Packages are generated in temporary directories by default to keep your original scripts as the single source of truth and avoid cluttering your project.
 
-### Local Registry
-The `.uvs-registry.json` file is stored in your current directory, making it project-specific and avoiding permission issues.
+### Global Registry
+The `registry.json` file is stored in `~/.config/uvs/`, making it user-global rather than project-specific and allowing tools to be managed across all projects.
 
 ### Editable Installs Not Recommended
 Editable installs have significant limitations - changes to source scripts aren't automatically reflected, and updates require manual reinstallation. Use `--update` instead for iterative development.
@@ -167,7 +167,7 @@ Editable installs have significant limitations - changes to source scripts aren'
    - Verify the `requires-python` specification matches your environment
 
 3. **"Permission denied"**
-   - Check write permissions for the current directory (for the registry)
+   - Check write permissions for the user config directory (~/.config/uvs/)
    - Use `--tempdir` to specify a writable location for package generation
 
 4. **"Module not found" after installation**
@@ -177,7 +177,7 @@ Editable installs have significant limitations - changes to source scripts aren'
 ### Getting Help
 
 - Use `--dry-run` to inspect generated packages without installing
-- Check the registry file to see what's been installed
+- Check the global registry file at ~/.config/uvs/registry.json to see what's been installed
 - Use `uv tool list` to see what `uv` has installed
 
 ## Contributing
@@ -274,7 +274,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - Installer script: [`src/uvs/uvs.py`](src/uvs/uvs.py)
 - Example script: [`uvs-example.py`](uvs-example.py)
-- Registry file: [`.uvs-registry.json`](.uvs-registry.json)
+- Registry file: `~/.config/uvs/registry.json`
 - Detailed documentation: [`README.md`](README.md)
 - Quick start guide: [`QUICKSTART.md`](QUICKSTART.md)
 - Examples: [`examples/`](examples/)

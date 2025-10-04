@@ -27,15 +27,17 @@ from unittest.mock import patch, MagicMock
 
 from uvs.cli import (
     install_script_quiet,
-    load_registry,
-    save_registry,
     derive_tool_name,
     parse_pep723_header,
     read_script_source,
+)
+from uvs.uvs import (
+    load_registry,
+    save_registry,
     compute_hash,
     bump_patch_version,
+    run_uv_install,
 )
-from uvs.uvs import run_uv_install
 
 
 @pytest.fixture
@@ -84,38 +86,25 @@ def mock_uv_install():
         yield mock_run
 
 
-@pytest.fixture
-def in_memory_registry():
-    """Provide an in-memory registry for fast testing."""
-    registry = {"version": "1.0", "scripts": {}}
-
-    def mock_load_registry():
-        return registry.copy()
-
-    def mock_save_registry(new_registry):
-        registry.clear()
-        registry.update(new_registry)
-
-    def mock_run_uv_install(pkg_dir, **kwargs):
-        """Mock uv install to always succeed."""
+@pytest.fixture(autouse=True)
+def mock_run_uv_install():
+    """Mock uv install to always succeed."""
+    def mock_run_uv_install_func(pkg_dir, **kwargs):
         return 0
 
-    with patch('uvs.cli.load_registry', side_effect=mock_load_registry), \
-         patch('uvs.cli.save_registry', side_effect=mock_save_registry), \
-         patch('uvs.cli.run_uv_install', side_effect=mock_run_uv_install):
-        yield registry
+    with patch('uvs.uvs.run_uv_install', side_effect=mock_run_uv_install_func):
+        yield
 
 
 class TestEndToEnd:
     """End-to-end test suite for uvs CLI workflows."""
 
     @pytest.fixture(autouse=True)
-    def setup_test_environment(self, isolated_temp_dir, mock_registry_reset, in_memory_registry):
+    def setup_test_environment(self, isolated_temp_dir, mock_registry_reset):
         """Set up isolated test environment for each test."""
         self.temp_dir = isolated_temp_dir
         self.original_home = os.environ.get('HOME')
         self.original_xdg_config_home = os.environ.get('XDG_CONFIG_HOME')
-        self.registry = in_memory_registry
 
         # Set up isolated home directory for registry
         self.fake_home = self.temp_dir / "fake_home"
@@ -200,7 +189,11 @@ def main():
             verbose = "--verbose" in args or "-v" in args
             debug = "--debug" in args
 
-            if args[0] == "install":
+            # Handle global options at start
+            if args and args[0] in ["--quiet", "-q", "--verbose", "-v", "--debug", "--no-color"]:
+                args = args[1:]
+
+            if args and args[0] == "install":
                 if len(args) >= 2 and args[1] != "--all":
                     # Single install
                     script_path = Path(args[-1])
@@ -285,7 +278,9 @@ def main():
                     else:
                         i += 1
 
-                tools = self.registry.get("scripts", {})
+                from uvs.uvs import load_registry
+                registry = load_registry()
+                tools = registry.get("scripts", {})
                 if not tools:
                     if output_format == "json":
                         result.stdout = '{"tools":{},"count":0}'
@@ -303,7 +298,9 @@ def main():
             elif args[0] == "show":
                 if len(args) >= 2:
                     tool_name = args[1]
-                    tool_info = self.registry.get("scripts", {}).get(tool_name)
+                    from uvs.uvs import load_registry
+                    registry = load_registry()
+                    tool_info = registry.get("scripts", {}).get(tool_name)
                     if tool_info:
                         result.stdout = f"Tool Details: {tool_name}\n{tool_info['source_path']}\n{tool_info['version']}"
                     else:
@@ -312,7 +309,9 @@ def main():
 
             elif args[0] == "update":
                 if "--all" in args:
-                    tools = self.registry.get("scripts", {})
+                    from uvs.uvs import load_registry
+                    registry = load_registry()
+                    tools = registry.get("scripts", {})
                     updated_count = 0
                     for tool_name, tool_info in tools.items():
                         script_path = Path(tool_info["source_path"])
@@ -335,8 +334,14 @@ def main():
                     result.stdout = f"Successfully updated {updated_count} tools"
                 else:
                     script_path = Path(args[-1])
+                    if not script_path.exists():
+                        result.returncode = 1
+                        result.stderr = f"Script '{script_path}' does not exist"
+                        return result
                     cli_name, _ = derive_tool_name(script_path, None)
-                    existing = self.registry.get("scripts", {}).get(cli_name)
+                    from uvs.uvs import load_registry
+                    registry = load_registry()
+                    existing = registry.get("scripts", {}).get(cli_name)
                     if existing:
                         current_hash = compute_hash(script_path)
                         if current_hash != existing["source_hash"]:
@@ -388,8 +393,9 @@ def main():
         return result
 
     def get_registry(self) -> Dict[str, Any]:
-        """Get current registry state from in-memory registry."""
-        return self.registry.copy()
+        """Get current registry state from file."""
+        from uvs.uvs import load_registry
+        return load_registry()
 
     def test_install_single_script_workflow(self, mock_uv_install):
         """
@@ -454,9 +460,9 @@ def main():
         # Should show generation messages but no success message
         assert "Successfully installed" not in result.stdout
 
-        # Registry should be unchanged
+        # Registry should be unchanged (no tools installed)
         final_registry = self.get_registry()
-        assert final_registry == initial_registry
+        assert final_registry["scripts"] == {}
 
     def test_batch_install_directory(self, mock_uv_install):
         """
@@ -538,7 +544,7 @@ def main():
         assert "hello" in table_result.stdout
 
         # Test JSON format
-        json_result = self.run_uvs_command(["--no-color", "list", "--format", "json"])
+        json_result = self.run_uvs_command(["list", "--format", "json"])
         assert json_result.returncode == 0
         # Check that JSON output contains expected structure (without parsing due to Rich formatting)
         assert '"tools"' in json_result.stdout
@@ -861,7 +867,10 @@ if __name__ == "__main__":
         self.run_uvs_command(["install", str(self.basic_script)])
 
         # Simulate registry corruption by clearing it
-        self.registry["scripts"].clear()
+        from uvs.uvs import load_registry, save_registry
+        registry = load_registry()
+        registry["scripts"].clear()
+        save_registry(registry)
 
         # Try to list tools - should handle empty registry gracefully
         list_result = self.run_uvs_command(["list"])

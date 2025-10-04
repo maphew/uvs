@@ -1,6 +1,7 @@
 # To do
 
 - verify configs are stored properly in home dirs, following standard convention.
+  - cross platform 
 - verify all examples work
 
 ## Intermediate pyproject.toml

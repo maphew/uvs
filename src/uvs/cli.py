@@ -25,15 +25,19 @@ from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
 from rich.table import Table
 from rich.text import Text
 
+from . import uvs
 from .uvs import (
     bump_patch_version,
     compute_hash,
     derive_tool_name,
     generate_pyproject,
     generate_readme,
+    get_registry_path,
+    load_registry,
     parse_pep723_header,
     read_script_source,
     run_uv_install,
+    save_registry,
     strip_pep723_header_and_main,
     write_package,
 )
@@ -256,31 +260,6 @@ class ConfigManager:
             return self.config_dirs["project"] / "uvs.toml"
 
 
-def get_registry_path() -> Path:
-    """Get the registry file path."""
-    return Path.home() / ".config" / "uvs" / "registry.json"
-
-
-def load_registry() -> Dict[str, Any]:
-    """Load the registry file."""
-    registry_path = get_registry_path()
-    if registry_path.exists():
-        try:
-            return json.loads(registry_path.read_text(encoding="utf8"))
-        except Exception:
-            pass
-    return {
-        "version": "1.0",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "scripts": {}
-    }
-
-
-def save_registry(registry: Dict[str, Any]):
-    """Save the registry file."""
-    registry_path = get_registry_path()
-    registry_path.parent.mkdir(parents=True, exist_ok=True)
-    registry_path.write_text(json.dumps(registry, indent=2), encoding="utf8")
 
 
 def show_success_message(output: OutputManager, tool_name: str, script_path: Path, version: str):
@@ -425,7 +404,7 @@ def install_with_progress(
 
             # Step 3: Install
             task3 = progress.add_task("Installing with uv...", total=None)
-            result = run_uv_install(pkg_dir)
+            result = uvs.run_uv_install(pkg_dir)
             progress.update(task3, completed=True)
 
             return result
@@ -488,7 +467,7 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
         return 0
 
     # Install with uv
-    result = run_uv_install(
+    result = uvs.run_uv_install(
         pkg_dir,
         editable=options.get('editable', False),
         python=options.get('python')
