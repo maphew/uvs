@@ -5,10 +5,6 @@
 #     "httpx>=0.24.0",
 #     "typer>=0.9.0"
 # ]
-# recommended-dependencies = [
-#     "rich>=13.0.0",
-#     "ipython>=8.0.0"
-# ]
 # extras = {
 #     "dev": [
 #         "pytest>=7.0.0",
@@ -32,10 +28,6 @@
 #     "Programming Language :: Python :: 3.12"
 # ]
 # readme = {file = "README.md", content-type = "text/markdown"}
-# homepage = "https://github.com/example/advanced-pep723"
-# repository = "https://github.com/example/advanced-pep723"
-# documentation = "https://advanced-pep723.readthedocs.io"
-# changelog = "https://github.com/example/advanced-pep723/blob/main/CHANGELOG.md"
 # ///
 
 """

@@ -26,6 +26,7 @@ def parse_pep723_header(path: Path) -> dict:
 
     Looks for lines between '# /// script' and '# ///' and evaluates simple assignments.
     Returns dict with keys like 'requires-python' and 'dependencies'.
+    Handles multi-line values for lists and dicts.
     """
     header = {}
     start = None
@@ -50,16 +51,42 @@ def parse_pep723_header(path: Path) -> dict:
         return header
 
     block = lines[start + 1 : end]
-    for ln in block:
+    i = 0
+    while i < len(block):
+        ln = block[i]
         stripped = ln.lstrip("# ").rstrip()
         if not stripped:
+            i += 1
             continue
         # Expect lines like 'requires-python = ">=3.13"' or 'dependencies = []'
         if "=" not in stripped:
+            i += 1
             continue
         key, val = stripped.split("=", 1)
         key = key.strip()
         val = val.strip()
+        # Check if val is multi-line (starts with [ or { and not closed)
+        if (val.startswith('[') and not val.endswith(']')) or (val.startswith('{') and not val.endswith('}')):
+            # Accumulate lines until closed
+            bracket_stack = []
+            opening = val[0]
+            closing = ']' if opening == '[' else '}'
+            bracket_stack.append(opening)
+            val_lines = [val]
+            i += 1
+            while i < len(block) and bracket_stack:
+                next_ln = block[i].lstrip("# ").rstrip()
+                val_lines.append(next_ln)
+                for char in next_ln:
+                    if char == opening:
+                        bracket_stack.append(char)
+                    elif char == closing:
+                        if bracket_stack:
+                            bracket_stack.pop()
+                i += 1
+            val = '\n'.join(val_lines)
+        else:
+            i += 1
         try:
             # Use ast.literal_eval for safety for lists/strings
             header[key] = ast.literal_eval(val)

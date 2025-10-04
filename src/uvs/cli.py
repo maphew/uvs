@@ -383,7 +383,7 @@ def install_with_progress(
             cli_name, module_name = derive_tool_name(script_path, options.get('name'))
             version = options.get('version', '0.1.0')
             import ast
-            description = ast.get_docstring(ast.parse(script_body)) or f"Command-line tool from {script_path.name}"
+            description = "Auto-generated package"
             source_hash = compute_hash(script_path)
 
             # Setup temp directory
@@ -443,7 +443,7 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
                 return 0
 
     # Get description from docstring
-    description = ast.get_docstring(ast.parse(script_body)) or f"Command-line tool from {script_path.name}"
+    description = "Auto-generated package"
 
     # Get source hash
     source_hash = compute_hash(script_path)
