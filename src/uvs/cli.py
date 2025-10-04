@@ -464,6 +464,12 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
 
     # Dry run mode
     if options.get('dry_run'):
+        print(f"Dry run: Would install '{cli_name}' (version {version}) from {script_path}")
+        print(f"  Package would be generated at: {pkg_dir}")
+        if dependencies:
+            print(f"  Dependencies: {', '.join(dependencies)}")
+        else:
+            print("  Dependencies: none")
         return 0
 
     # Install with uv
