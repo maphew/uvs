@@ -140,7 +140,94 @@ uvs install --all ./scripts/
 
 # List all installed scripts
 uvs list
+
+# Uninstall a specific tool
+uvs uninstall my-tool
+
+# Uninstall all tools
+uvs uninstall --all
+
+# Preview what would be uninstalled
+uvs uninstall --dry-run my-tool
 ```
+
+## Uninstalling Tools
+
+`uvs` provides a comprehensive uninstall command that works with both the uvs registry and uv's tool management system.
+
+### Command Syntax
+
+```bash
+uvs uninstall [OPTIONS] TOOL_NAME
+uvs uninstall --all [OPTIONS]
+```
+
+### Options
+
+- `--all`: Uninstall all installed tools
+- `--dry-run`: Show what would be uninstalled without actually uninstalling
+- `--backup/--no-backup`: Create a backup of the registry before uninstalling (default: --backup)
+- `--force`: Force uninstall without confirmation prompts
+
+### How It Works
+
+The uninstall process involves several steps:
+
+1. **Registry Lookup**: `uvs` checks its registry to find the tool
+2. **Backup Creation**: Optionally creates a backup of the registry
+3. **UV Uninstall**: Calls `uv tool uninstall` to remove the tool from uv's environment
+4. **Verification**: Confirms the tool is no longer available
+5. **Registry Cleanup**: Removes the tool entry from uvs registry
+
+### Registry Tracking
+
+`uvs` maintains a registry of all installed tools in a platform-specific location:
+- Linux: `~/.config/uvs/registry.json`
+- macOS: `~/Library/Application Support/uvs/registry.json`
+- Windows: `%APPDATA%/uvs/registry.json`
+
+When uninstalling, `uvs`:
+- Removes the tool from uv's environment using `uv tool uninstall`
+- Cleans up the registry entry
+- Optionally creates a backup of the registry before making changes
+
+### Usage Examples
+
+```bash
+# Uninstall a specific tool
+uvs uninstall my-tool
+
+# Uninstall all tools with confirmation
+uvs uninstall --all
+
+# Uninstall without confirmation prompts
+uvs uninstall --force my-tool
+
+# Preview what would be uninstalled
+uvs uninstall --dry-run my-tool
+
+# Uninstall all tools without creating a registry backup
+uvs uninstall --all --no-backup
+```
+
+### Error Handling
+
+The uninstall command handles various error scenarios:
+
+- **Tool not found in registry**: Shows an error message with available tools
+- **UV uninstall failure**: Attempts to clean up registry entries if the tool is already gone
+- **Permission issues**: Provides guidance on fixing access problems
+- **Registry corruption**: Creates backups and attempts recovery
+
+### Relationship with UV
+
+`uvs uninstall` works in conjunction with `uv tool uninstall`:
+
+1. `uvs` manages the registry tracking tool origins
+2. `uv` handles the actual tool removal from the environment
+3. `uvs` verifies the removal and cleans up its registry
+
+This dual approach ensures tools are completely removed from both the uv environment and uvs tracking system.
 
 ## Design Decisions
 

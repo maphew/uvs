@@ -27,7 +27,9 @@ from rich.text import Text
 
 from . import uvs
 from .uvs import (
+    backup_registry,
     bump_patch_version,
+    cleanup_registry_entry,
     compute_hash,
     derive_tool_name,
     generate_pyproject,
@@ -37,8 +39,10 @@ from .uvs import (
     parse_pep723_header,
     read_script_source,
     run_uv_install,
+    run_uv_uninstall,
     save_registry,
     strip_pep723_header_and_main,
+    verify_tool_uninstalled,
     write_package,
 )
 
@@ -518,6 +522,8 @@ def cli(ctx, verbose, quiet, debug, no_color, config):
         uvs list                        # List installed tools
         uvs show my-tool               # Show tool details
         uvs update script.py           # Update a tool
+        uvs uninstall my-tool         # Uninstall a tool
+        uvs uninstall --all           # Uninstall all tools
 
     \b
     For detailed help on any command:
@@ -862,6 +868,146 @@ def update(ctx, script, update_all, python):
             output.verbose(f"New version: {new_version}")
 
         return result
+
+
+@cli.command()
+@click.argument('tool_name', required=False)
+@click.option('--all', 'uninstall_all', is_flag=True, help='Uninstall all installed tools')
+@click.option('--dry-run', is_flag=True, help='Show what would be uninstalled without actually uninstalling')
+@click.option('--backup/--no-backup', default=True, help='Create a backup of the registry before uninstalling')
+@click.option('--force', is_flag=True, help='Force uninstall without confirmation')
+@click.pass_context
+def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
+    """Uninstall an installed tool.
+    
+    \b
+    Examples:
+        uvs uninstall my-tool         # Uninstall a specific tool
+        uvs uninstall --all           # Uninstall all tools
+        uvs uninstall --dry-run tool  # Preview what would be uninstalled
+    """
+    output = ctx.obj['output']
+    config = ctx.obj['config']
+    
+    # Check if either tool_name or --all is specified
+    if not tool_name and not uninstall_all:
+        output.error("Either TOOL_NAME or --all is required")
+        return 1
+    
+    # Load registry
+    registry = load_registry()
+    tools = registry.get("scripts", {})
+    
+    if not tools:
+        output.print("No tools installed")
+        return 0
+    
+    # Create backup if requested
+    if backup and not dry_run:
+        try:
+            backup_path = backup_registry()
+            output.verbose(f"Created registry backup at: {backup_path}")
+        except Exception as e:
+            output.warning(f"Failed to create registry backup: {e}")
+    
+    if uninstall_all:
+        # Uninstall all tools
+        if not force and not dry_run:
+            if not click.confirm(f"Are you sure you want to uninstall all {len(tools)} tools?"):
+                output.print("Uninstall cancelled")
+                return 0
+        
+        success_count = 0
+        failure_count = 0
+        
+        for name, info in tools.items():
+            if dry_run:
+                output.print(f"Would uninstall: {name} (from {info['source_path']})")
+                success_count += 1
+                continue
+            
+            output.print(f"Uninstalling {name}...")
+            
+            # Run uv tool uninstall
+            result = run_uv_uninstall(name)
+            
+            if result == 0:
+                # Verify it's uninstalled
+                if verify_tool_uninstalled(name):
+                    # Remove from registry
+                    if cleanup_registry_entry(name):
+                        output.verbose(f"Removed {name} from registry")
+                        success_count += 1
+                    else:
+                        output.warning(f"Uninstalled {name} but failed to remove from registry")
+                        success_count += 1  # Still count as success since tool is uninstalled
+                else:
+                    output.error(f"Failed to verify uninstallation of {name}")
+                    failure_count += 1
+            else:
+                output.error(f"Failed to uninstall {name}")
+                failure_count += 1
+        
+        if dry_run:
+            output.print(f"Would uninstall {success_count} tools")
+            return 0
+        elif failure_count > 0:
+            output.print(f"Uninstalled {success_count} tools, {failure_count} failed")
+            return 1
+        else:
+            output.print(f"Successfully uninstalled all {success_count} tools")
+            return 0
+    
+    else:
+        # Uninstall single tool
+        if tool_name not in tools:
+            output.error(f"No tool named '{tool_name}' found in registry")
+            return 1
+        
+        tool_info = tools[tool_name]
+        
+        if dry_run:
+            output.print(f"Would uninstall: {tool_name} (from {tool_info['source_path']})")
+            return 0
+        
+        if not force:
+            if not click.confirm(f"Are you sure you want to uninstall '{tool_name}'?"):
+                output.print("Uninstall cancelled")
+                return 0
+        
+        output.print(f"Uninstalling {tool_name}...")
+        
+        # Run uv tool uninstall
+        result = run_uv_uninstall(tool_name)
+        
+        if result == 0:
+            # Verify it's uninstalled
+            if verify_tool_uninstalled(tool_name):
+                # Remove from registry
+                if cleanup_registry_entry(tool_name):
+                    output.verbose(f"Removed {tool_name} from registry")
+                    output.print(f"Successfully uninstalled {tool_name}")
+                    return 0
+                else:
+                    output.warning(f"Uninstalled {tool_name} but failed to remove from registry")
+                    return 0  # Still count as success since tool is uninstalled
+            else:
+                output.error(f"Failed to verify uninstallation of {tool_name}")
+                return 1
+        else:
+            # Check if the tool is already uninstalled from uv but still in registry
+            if verify_tool_uninstalled(tool_name):
+                # Clean up the registry entry
+                if cleanup_registry_entry(tool_name):
+                    output.verbose(f"Removed {tool_name} from registry")
+                    output.print(f"Cleaned up registry entry for {tool_name} (already uninstalled)")
+                    return 0
+                else:
+                    output.warning(f"Failed to remove {tool_name} from registry")
+                    return 1
+            else:
+                output.error(f"Failed to uninstall {tool_name}")
+                return 1
 
 
 @cli.group()

@@ -90,7 +90,19 @@ The tool will detect changes and bump the version automatically.
 ### Uninstall a Tool
 
 ```bash
-uv tool uninstall my-tool
+uvs uninstall my-tool
+```
+
+You can also uninstall all tools at once:
+
+```bash
+uvs uninstall --all
+```
+
+For a preview of what would be uninstalled without actually removing it:
+
+```bash
+uvs uninstall --dry-run my-tool
 ```
 
 ## Advanced Usage
@@ -157,10 +169,25 @@ Install uv following the [official installation guide](https://docs.astral.sh/uv
 4. Use `uvs --dry-run` to inspect the generated package
 
 
+### "Tool not found" during uninstall
+
+1. Check the tool name with `uvs --list`
+2. Verify the tool was installed with uvs (not directly with uv)
+3. Use `uv tool list` to see all tools installed with uv
+
+
+### "Failed to uninstall tool"
+
+1. Check if the tool is still in use by another process
+2. Try running with `--force` flag to skip confirmation
+3. Use `uv tool list` to verify the tool exists in uv's registry
+4. Use `uvs uninstall --dry-run tool-name` to preview what would be removed
+
+
 ## Next Steps
 
 - Explore the [examples directory](examples/) for more complex scripts
-- [Readme-full](Readme-full.md) for extended docs adn development notes
+- [Readme-full](Readme-full.md) for extended docs and development notes
 
 
 ## Contributors

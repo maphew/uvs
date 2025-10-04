@@ -25,4 +25,4 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
-addopts = "-k 'TestConfigManager or TestParseConfigValue or TestConfigSecurity or TestEndToEnd'"
+addopts = "-k 'TestConfigManager or TestParseConfigValue or TestConfigSecurity or TestEndToEnd or TestRunUvUninstall or TestVerifyToolUninstalled or TestCleanupRegistryEntry or TestBackupRegistry'"

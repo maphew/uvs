@@ -1,9 +1,6 @@
 # To do
 
-- Add uninstall command - while `uv tool uninstall` works already, only uvs has the mapping of what it installed (`uvs list`).
-  - also `uninstall --all` 
-
-
+- ...
 
 # COMPLETE
 
@@ -30,3 +27,5 @@
 - [x] Description should come from docstring of the script. If there is no docstring, generate one from analysing what the script does.
 
 - [x] verify all examples work
+
+- [x] Add uninstall command - while `uv tool uninstall` works already, only uvs has the mapping of what it installed (`uvs list`). Also `uninstall --all`.

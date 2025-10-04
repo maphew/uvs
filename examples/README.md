@@ -99,10 +99,20 @@ To install any of these examples:
 
 ## Uninstalling Examples
 
-To remove an installed example:
+To remove an installed example using uvs:
 ```bash
-uv tool uninstall complex-cli
-uv tool uninstall advanced-pep723
+uvs uninstall complex-cli
+uvs uninstall advanced-pep723
+```
+
+You can also uninstall all examples at once:
+```bash
+uvs uninstall --all
+```
+
+For a preview of what would be uninstalled:
+```bash
+uvs uninstall --dry-run complex-cli
 ```
 
 ## Finding Installed Tools

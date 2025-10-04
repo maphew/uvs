@@ -288,5 +288,88 @@ def save_registry(reg: dict) -> None:
     registry_path.write_text(json.dumps(reg, indent=2), encoding="utf8")
 
 
+def run_uv_uninstall(tool_name: str) -> int:
+    """Invoke `uv tool uninstall` on the specified tool. Returns subprocess exit code."""
+    cmd = ["uv", "tool", "uninstall", tool_name]
+    print("Running:", " ".join(cmd))
+    return subprocess.run(cmd).returncode
+
+
+def verify_tool_uninstalled(tool_name: str) -> bool:
+    """Verify that a tool is no longer available in the system."""
+    import json
+    try:
+        # Check if the tool is still in uv's tool list
+        result = subprocess.run(
+            ["uv", "tool", "list", "--format=json"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        
+        # Parse the JSON output
+        tools = json.loads(result.stdout)
+        
+        # Check if our tool is in the list
+        for tool in tools:
+            if tool.get("name") == tool_name:
+                return False
+        
+        return True
+    except (subprocess.CalledProcessError, json.JSONDecodeError):
+        # If we can't check, try a different approach
+        try:
+            # Try to run the tool directly to see if it exists
+            result = subprocess.run(
+                [tool_name, "--help"],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            # If the command runs successfully, the tool is still installed
+            if result.returncode == 0:
+                return False
+            # If we get "command not found", the tool is uninstalled
+            return True
+        except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.SubprocessError):
+            # If we can't run the tool, assume it's uninstalled
+            return True
+
+
+def cleanup_registry_entry(tool_name: str) -> bool:
+    """Remove a tool entry from the registry."""
+    try:
+        registry = load_registry()
+        if "scripts" in registry and tool_name in registry["scripts"]:
+            del registry["scripts"][tool_name]
+            save_registry(registry)
+            return True
+        return False
+    except Exception:
+        return False
+
+
+def backup_registry() -> Path:
+    """Create a backup of the registry file."""
+    registry_path = get_registry_path()
+    config_dir = get_config_dir()
+    
+    # Create backups directory if it doesn't exist
+    backups_dir = config_dir / "backups"
+    backups_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Create backup with timestamp
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = backups_dir / f"registry_{timestamp}.json"
+    
+    # Copy registry to backup location
+    if registry_path.exists():
+        import shutil
+        shutil.copy2(registry_path, backup_path)
+    
+    return backup_path
+
+
 # Core utility functions for uvs CLI
 # The main CLI interface is now in cli.py using Click and Rich
