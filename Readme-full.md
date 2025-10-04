@@ -127,19 +127,19 @@ uvs [OPTIONS] <script-or-dir>
 
 ```bash
 # Dry run to inspect generated package
-uvs --dry-run example.py
+uvs install --dry-run example.py
 
 # Install with custom name
-uvs --name my-tool example.py
+uvs install --name my-tool example.py
 
 # Update an existing installation
-uvs --update example.py
+uvs update example.py
 
 # Install all scripts in a directory
-uvs --all ./scripts/
+uvs install --all ./scripts/
 
 # List all installed scripts
-uvs --list
+uvs list
 ```
 
 ## Design Decisions
