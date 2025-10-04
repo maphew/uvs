@@ -258,7 +258,7 @@ class ConfigManager:
 
 def get_registry_path() -> Path:
     """Get the registry file path."""
-    return Path(".uvs-registry.json")
+    return Path.home() / ".config" / "uvs" / "registry.json"
 
 
 def load_registry() -> Dict[str, Any]:
@@ -279,6 +279,7 @@ def load_registry() -> Dict[str, Any]:
 def save_registry(registry: Dict[str, Any]):
     """Save the registry file."""
     registry_path = get_registry_path()
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
     registry_path.write_text(json.dumps(registry, indent=2), encoding="utf8")
 
 
