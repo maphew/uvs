@@ -1,7 +1,5 @@
 # To do
 
-- verify configs are stored properly in home dirs, following standard convention.
-  - cross platform 
 - verify all examples work
 
 ## Intermediate pyproject.toml
@@ -40,3 +38,5 @@
 - [x] install registry needs to be in a standard ~/.config or %appdata% location instead of relative to where command was run from
 
 - [x] add tests for user-facing behaviour
+
+- [x] verify configs are stored properly in home dirs, following standard convention -- using [platformdirs](https://platformdirs.readthedocs.io/en/latest/) instead of building our own.

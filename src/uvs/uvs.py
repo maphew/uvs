@@ -18,6 +18,8 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+import platformdirs
+
 
 def parse_pep723_header(path: Path) -> dict:
     """Parse a minimal PEP723-like header in the script.
@@ -231,9 +233,14 @@ def bump_patch_version(ver: str) -> str:
         return ver
 
 
+def get_config_dir() -> Path:
+    """Get the platform-specific configuration directory for uvs."""
+    return Path(platformdirs.user_config_dir("uvs"))
+
+
 def get_registry_path() -> Path:
     """Get the registry file path."""
-    return Path.home() / ".config" / "uvs" / "registry.json"
+    return get_config_dir() / "registry.json"
 
 
 def load_registry() -> dict:
