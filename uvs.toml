@@ -1,0 +1,25 @@
+[default]
+python = "3.11"
+output_format = "table"
+color = "auto"
+
+[install]
+default_version = "0.1.0"
+editable = false
+dry_run = false
+
+[registry]
+backup = true
+max_backups = 5
+
+[update]
+
+[ui]
+progress_style = "rich"
+show_success = true
+confirm_destructive = true
+
+[logging]
+
+[test]
+key = "value"

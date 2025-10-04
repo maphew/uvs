@@ -211,6 +211,55 @@ cd uvs
 uv run pytest
 ```
 
+
+## Testing
+
+### User-Behavior Focused Test Suite
+
+`uvs` includes a comprehensive end-to-end test suite that focuses on user journeys and observable behavior rather than internal implementation details. This approach ensures reliability by testing complete workflows as users would experience them.
+
+#### What is Tested
+
+**User Journeys & Observable Behavior:**
+- Complete installation workflows (single scripts, batch operations, custom names)
+- Tool management (listing, showing details, finding sources)
+- Update workflows (detecting changes, version bumping, registry updates)
+- Error scenarios and edge cases (missing files, malformed scripts, security)
+- Configuration management and persistence
+- Unicode and large script handling
+- Registry backup and recovery
+
+**What is Not Tested:**
+- Internal implementation details (parsing logic, package generation internals)
+- Unit-level function behavior (except where it affects user experience)
+- Performance micro-optimizations
+
+#### Running the Tests
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run with duration reporting (shows slowest tests)
+uv run pytest --durations=10
+
+# Run specific test categories
+uv run pytest tests/test_e2e.py -v  # End-to-end tests
+uv run pytest tests/test_cli.py -v  # CLI component tests
+```
+
+#### Test Execution Improvements
+
+The test suite has been optimized for speed and reliability:
+
+- **Fast Execution**: Uses in-memory registries and mocked subprocess calls to avoid slow I/O operations
+- **Deterministic Results**: Controlled test environments prevent flaky tests from external dependencies
+- **Comprehensive Coverage**: Tests simulate real user workflows end-to-end while maintaining fast execution
+- **Reliable CI/CD**: Tests run consistently across different environments without external dependencies
+
+The current test suite achieves comprehensive coverage of user-facing functionality while maintaining execution times under 30 seconds for the full suite.
+
+
 ## Related Projects
 
 - [uv](https://github.com/astral-sh/uv): The Python package installer and resolver

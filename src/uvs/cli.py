@@ -733,8 +733,7 @@ def show(ctx, tool_name, output_format):
     tool_info = registry.get("scripts", {}).get(tool_name)
 
     if not tool_info:
-        output.error(f"No tool named '{tool_name}' found")
-        return 1
+        raise click.ClickException(f"No tool named '{tool_name}' found")
 
     if output_format == 'json':
         show_tools_json({tool_name: tool_info}, output)
@@ -758,7 +757,7 @@ def show(ctx, tool_name, output_format):
 
 
 @cli.command()
-@click.argument('script', type=click.Path(exists=True))
+@click.argument('script', type=click.Path(exists=True), required=False)
 @click.option('--all', 'update_all', is_flag=True, help='Update all installed tools')
 @click.option('--python', help='Python version for installation')
 @click.pass_context

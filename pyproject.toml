@@ -11,6 +11,8 @@ dependencies = [
     "click>=8.0.0",
     "rich>=13.0.0",
     "toml>=0.10.0",
+    "pytest>=7.0.0",
+    "pytest-xdist>=3.6.1",
 ]
 
 [project.scripts]
@@ -19,3 +21,7 @@ uvs = "uvs.cli:cli"
 [build-system]
 requires = ["uv_build>=0.8.22,<0.9.0"]
 build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+addopts = "-k 'TestConfigManager or TestParseConfigValue or TestConfigSecurity or TestEndToEnd'"
