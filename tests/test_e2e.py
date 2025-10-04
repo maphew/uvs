@@ -486,6 +486,27 @@ def main():
         assert "batch1" in registry["scripts"]
         assert "batch2" in registry["scripts"]
 
+    def test_batch_install_directory_parsing_bug_regression(self):
+        """
+        Test that --all with directory doesn't try to parse directory as script file.
+
+        Regression test for bug where parse_pep723_header was called on directory path
+        when using --all option, causing IsADirectoryError.
+
+        Expected outcome: Command succeeds without trying to parse directory as file.
+        Code snippet: uvs install --all examples/
+        """
+        scripts_dir = self.temp_dir / "test_scripts"
+        scripts_dir.mkdir()
+        shutil.copy(self.batch_script1, scripts_dir / "test1.py")
+
+        # This should not raise IsADirectoryError when parsing CLI args
+        # The mock run_uvs_command simulates the CLI behavior
+        result = self.run_uvs_command(["install", "--all", str(scripts_dir)])
+
+        assert result.returncode == 0
+        assert "Successfully installed 1 scripts" in result.stdout
+
     def test_update_tool_workflow(self, mock_uv_install):
         """
         Test updating an installed tool when source changes.

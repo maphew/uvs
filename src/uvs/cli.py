@@ -601,7 +601,7 @@ def install(ctx, script, name, version, editable, tempdir, python, dry_run, inst
 
     # Check if script has requires-python before setting python from config
     if not python:
-        if script:
+        if not install_all and script:
             script_path = Path(script)
             header = parse_pep723_header(script_path)
             requires_python_in_script = header.get("requires-python") or header.get("requires_python")
