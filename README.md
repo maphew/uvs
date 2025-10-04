@@ -202,7 +202,7 @@ ls -la .uvs-registry.json
 
 ### v0.1.0
 
-Initial idea, development, and LLM wrangling: matt wilkie @maphewyk, maphew@gmail.com.
+Initial idea, development, quality control, and LLM wrangling: matt wilkie @maphewyk, maphew@gmail.com.
 
 IDE and AI orchestration: Kilo Code
 

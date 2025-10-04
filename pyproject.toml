@@ -6,11 +6,15 @@ readme = "README.md"
 authors = [
     { name = "maphew", email = "maphew@gmail.com" }
 ]
-requires-python = ">=3.13"
-dependencies = []
+requires-python = ">=3.8"
+dependencies = [
+    "click>=8.0.0",
+    "rich>=13.0.0",
+    "toml>=0.10.0",
+]
 
 [project.scripts]
-uvs = "uvs.uvs:main"
+uvs = "uvs.cli:cli"
 
 [build-system]
 requires = ["uv_build>=0.8.22,<0.9.0"]

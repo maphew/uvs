@@ -25,7 +25,6 @@
 
 ## Docs
 
-- Review @/scripts/README.md with an eye to making concise. It currently contains things which are documented elsewhere, for example the structure of PEP723 metadata. Refer to authoritative upstream docs instead of repeating here.
 
 # COMPLETE
 
@@ -36,3 +35,7 @@
   - discarded: `luv` - don't know what the L is, but the name is just begging to be used. 'Local' maybe? Anyway, save for project that fits.
 
 - [x] adjust pyproject.toml so that uvs itself is uv tool installable.
+
+- [x] Review @/scripts/README.md with an eye to making concise. It currently contains things which are documented elsewhere, for example the structure of PEP723 metadata. Refer to authoritative upstream docs instead of repeating here.
+
+- [x] uvs should use same syntax style as uv. For example `uvs list` instead of `uv --list`. Let's enrich cli experience too while we're at it.

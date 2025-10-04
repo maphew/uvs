@@ -5,8 +5,8 @@
     "uvs-example": {
       "tool_name": "uvs-example",
       "source_path": "/var/home/matt/OneDrive/dev/uvs/uvs-example.py",
-      "source_hash": "7125953411a8795ce5ce1106e8e79a416caa581af11b59134c5848d50a6af41f",
-      "installed_at": "2025-10-03T17:35:10.499355+00:00",
+      "source_hash": "80f3f42351ff941679b0bcde0011ade93f321295f3c39128caf92facdc032264",
+      "installed_at": "2025-10-03T23:43:38.977017+00:00",
       "version": "0.1.0"
     }
   }
