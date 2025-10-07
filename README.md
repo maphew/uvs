@@ -2,6 +2,8 @@
 
 How to use `uvs` to install single-file Python scripts as command-line tools.
 
+Known to work on Linux and Windows. Mac should be okay but I don't know.
+
 ## Prerequisites
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) installed and available in your PATH
