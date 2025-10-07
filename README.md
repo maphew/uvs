@@ -6,7 +6,7 @@ How to use `uvs` to install single-file Python scripts as command-line tools.
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) installed and available in your PATH
 
-## Install
+## Install uvs
 
 Install `uvs` as a command-line tool:
 
@@ -14,7 +14,7 @@ Install `uvs` as a command-line tool:
 uv tool install https://github.com/maphew/uvs.git
 ```
 
-Now you can use `uvs` directly:
+Now you can use `uvs`:
 
 ```bash
 uvs --help
@@ -22,59 +22,60 @@ uvs --help
 
 ## Your First Installation
 
-### 1. Create a Simple Script
+Create a script with [PEP 723][pep723] inline metadata [using uv][uv_script] and install it as a tool:
 
-Create a file named `my-tool.py` with [PEP 723](https://peps.python.org/pep-0723/) inline metadata (see https://docs.astral.sh/uv/guides/scripts/#creating-a-python-script)
+```cmd
+> uv init --script uvs-hello.py
+Initialized script at `uvs-hello.py`
 
-### 2. Install Your Script
+> uvs install uvs-hello.py
+Running: uv tool install C:\...\uvs-_asjfho3\uvs-hello
+⠋ Installing...⠋ Resolving dependencies...
+Resolved 1 package in 3ms
+      Built uvs-hello @ file:///C:/.../uvs-_asjfho3/uvs-hello
+Prepared 1 package in 27ms
+Installed 1 package in 16ms
+ + uvs-hello==0.1.0 (from file:///C:/.../uvs-_asjfho3/uvs-hello)
+Installed 1 executable: uvs-hello
 
-```bash
-uvs install my-tool.py
+╭──────── Installation Complete ───────────╮
+│  ✓ Successfully installed uvs-hello      │
+│                                          │
+│  Source: C:\...\dev\play\uvs-hello.py    │
+│  Version: 0.1.0                          │
+│  Run 'uvs-hello' to use your new tool    │
+╰──────────────────────────────────────────╯
+
+> uvs-hello
+Hello from uvs-hello.py!
 ```
 
-You should see output similar to:
+[pep723]:https://peps.python.org/pep-0723/
+[uv_script]:https://docs.astral.sh/uv/guides/scripts/#creating-a-python-script
 
-```
-Generated package at: /tmp/uvs-abc123/my-tool
-Running: uv tool install /tmp/uvs-abc123/my-tool
-Installed 'my-tool' from /path/to/my-tool.py
-```
 
-### 3. Use Your New Command
-
-```bash
-my-tool
-```
-
-Output:
-```
-Hello from my tool!
-```
 
 ## Managing Installed Tools
 
-### List All Installed Tools
-
 ```bash
-uvs --list
+# List tools installed with uvs
+# (note: this is different from `uv tool list`) 
+> uvs list
+
+Tool Name  Source Path             Version  Installed At       
+fgmirror   C:\...\dev\fgmirror.py  0.1.0    2025-10-07T03:00:27
+
+> uvs show fgmirror
+
+                  Tool Details: fgmirror
+Property   Value
+Name       fgmirror
+Source     C:\...\dev\fgmirror.py
+Version    0.1.0
+Installed  2025-10-07T03:00:27.171189+00:00
+Hash       5192febbfb2df230...
 ```
 
-Output:
-```
-my-tool      <- /path/to/my-tool.py (version: 0.1.0)
-api-check    <- /path/to/api-check.py (version: 0.1.0)
-```
-
-### Find the Source of a Tool
-
-```bash
-uvs --which my-tool
-```
-
-Output:
-```
-/path/to/my-tool.py
-```
 
 ### Update a Tool
 
@@ -82,59 +83,80 @@ Output:
 2. Reinstall with the `--update` flag:
 
 ```bash
-uvs --update my-tool.py
+> uvs update my-tool.py
 ```
 
-The tool will detect changes and bump the version automatically.
+Uvs will detect changes and bump the version automatically.
 
 ### Uninstall a Tool
 
 ```bash
+# one tool
 uvs uninstall my-tool
-```
 
-You can also uninstall all tools at once:
-
-```bash
+# all uvs tools
 uvs uninstall --all
-```
 
-For a preview of what would be uninstalled without actually removing it:
-
-```bash
+# Preview without actually removing:
 uvs uninstall --dry-run my-tool
 ```
 
-## Advanced Usage
+## Usage parameters
 
-### Custom Tool Name
+```
+uvs install --help 
+Usage: uvs install [OPTIONS] [SCRIPT]
 
-Override the default tool name:
+  Install a script as a CLI tool.
 
-```bash
-uvs --name awesome-tool my-tool.py
+  SCRIPT is the path to the Python script to install. The script should:
+  - Contain PEP723 metadata in a comment block
+  - Have a main() function that will be called when the tool is executed
+
+  Examples:
+      uvs install my-script.py                    # Install with default name
+      uvs install --name my-tool script.py        # Custom tool name
+      uvs install --all ./scripts/                # Install all scripts in directory
+      uvs install --dry-run script.py             # Preview without installing
+      uvs install --editable --python 3.11 script.py  # Development install
+
+  PEP723 Metadata Example:
+      # /// script
+      # requires-python = ">=3.8"
+      # dependencies = ["requests", "click"]
+      # ///
+
+Options:
+  -n, --name TEXT  Override tool name (default: derived from filename)
+  --version TEXT   Initial package version (default: 0.1.0)
+  -e, --editable   Install in editable mode for development
+  --tempdir PATH   Directory for temporary package generation
+  --python TEXT    Python version to use for installation (e.g., 3.11)
+  --dry-run        Generate package but do not install
+  --all            Install all .py files in directory
+  --help           Show this message and exit.
 ```
 
-Now you can run it as:
-```bash
-awesome-tool
+```
+uvs uninstall --help
+Usage: uvs uninstall [OPTIONS] [TOOL_NAME]
+
+  Uninstall an installed tool.
+
+  Examples:
+      uvs uninstall my-tool         # Uninstall a specific tool
+      uvs uninstall --all           # Uninstall all tools
+      uvs uninstall --dry-run tool  # Preview what would be uninstalled
+
+Options:
+  --all                   Uninstall all installed tools
+  --dry-run               Show what would be uninstalled without actually
+                          uninstalling
+  --backup / --no-backup  Create a backup of the registry before uninstalling
+  --force                 Force uninstall without confirmation
+  --help                  Show this message and exit.
 ```
 
-### Batch Installation
-
-Install all Python scripts in a directory:
-
-```bash
-uvs --all ./scripts/
-```
-
-### Dry Run
-
-Inspect the generated package without installing:
-
-```bash
-uvs --dry-run my-tool.py
-```
 
 ## Common Workflows
 
@@ -187,7 +209,7 @@ Install uv following the [official installation guide](https://docs.astral.sh/uv
 ## Next Steps
 
 - Explore the [examples directory](examples/) for more complex scripts
-- [Readme-full](Readme-full.md) for extended docs and development notes
+- **[Readme-full](Readme-full.md)** for extended docs and development notes
 
 
 ## Contributors
