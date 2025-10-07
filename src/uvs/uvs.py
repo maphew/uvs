@@ -161,6 +161,8 @@ def derive_tool_name(path: Path, explicit_name: str | None = None) -> tuple[str,
 def generate_pyproject(tool_name: str, module_name: str, version: str, description: str, requires_python: str | None, dependencies: list[str], source_path: str, source_hash: str) -> str:
     deps_repr = ",\n    ".join(f'"{d}"' for d in dependencies) if dependencies else ""
     requires_line = f'requires-python = "{requires_python}"' if requires_python else ''
+    # Escape backslashes for TOML compatibility (Windows paths)
+    source_path_escaped = source_path.replace("\\", "/")
     proj_section = f"""[project]
 name = "{tool_name}"
 version = "{version}"
@@ -175,7 +177,7 @@ dependencies = [
 {tool_name} = "{module_name}:main"
 
 [tool.uvs]
-source_path = "{source_path}"
+source_path = "{source_path_escaped}"
 source_hash = "{source_hash}"
 generated_at = "{datetime.now(timezone.utc).isoformat()}"
 generator = "uvs/0.1.0"
