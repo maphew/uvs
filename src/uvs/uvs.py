@@ -421,6 +421,20 @@ def validate_script_syntax(path: Path) -> tuple[bool, str]:
         return False, f"Syntax error in {path.name}: {e}"
 
 
+def extract_description(source: str) -> str:
+    """Extract description from script's module docstring, or return a default."""
+    try:
+        tree = ast.parse(source)
+        docstring = ast.get_docstring(tree)
+        if docstring:
+            first_line = docstring.strip().split("\n")[0].strip()
+            if first_line:
+                return first_line
+    except SyntaxError:
+        pass
+    return "Auto-generated package"
+
+
 def validate_script_has_main(source: str) -> bool:
     """Check if the script source defines a top-level main() function."""
     try:

@@ -9,21 +9,18 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
-import sys
 import tempfile
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import click
 import toml
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
-from rich.text import Text
 
 from . import uvs
 from .uvs import (
@@ -32,6 +29,7 @@ from .uvs import (
     cleanup_registry_entry,
     compute_hash,
     derive_tool_name,
+    extract_description,
     generate_pyproject,
     generate_readme,
     get_registry_path,
@@ -105,6 +103,7 @@ class ConfigManager:
 
     def __init__(self):
         self.config_dirs = self._get_config_dirs()
+        self._scope_configs: Dict[str, Dict] = {}
         self.config = {
             "default": {},
             "install": {},
@@ -164,6 +163,10 @@ class ConfigManager:
             with path.open("r", encoding="utf-8") as f:
                 data = toml.load(f)
 
+            import copy
+
+            self._scope_configs[config_type] = copy.deepcopy(data)
+
             # Merge with existing config
             self._merge_config(data)
 
@@ -199,38 +202,50 @@ class ConfigManager:
         section = keys[0]
         config_key = ".".join(keys[1:])
 
-        # Ensure section exists
+        # Ensure section exists in merged config
         if section not in self.config:
             self.config[section] = {}
 
         section_obj = self.config[section]
 
         if len(keys) == 1:
-            # Setting the entire section
             if isinstance(value, dict):
                 section_obj.update(value)
             else:
                 raise ValueError(f"Section '{section}' must be a dictionary")
         else:
-            # Setting a specific key
             section_obj[config_key] = value
+
+        # Also update the scope-specific config
+        scope_key = "global" if scope == "global" else "project"
+        if scope_key not in self._scope_configs:
+            self._scope_configs[scope_key] = {}
+        scope_config = self._scope_configs[scope_key]
+        if section not in scope_config:
+            scope_config[section] = {}
+        if len(keys) == 1:
+            if isinstance(value, dict):
+                scope_config[section].update(value)
+        else:
+            scope_config[section][config_key] = value
 
         # Save to appropriate config file
         self._save_config(scope)
 
     def _save_config(self, scope: str):
-        """Save configuration to file."""
+        """Save only the scope-specific configuration to file."""
         if scope == "global":
             config_path = self.config_dirs["global"] / "config.toml"
+            scope_key = "global"
         else:
             config_path = self.config_dirs["project"] / "uvs.toml"
+            scope_key = "project"
 
-        # Ensure directory exists
         config_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Write to file
+        data = self._scope_configs.get(scope_key, {})
         with config_path.open("w", encoding="utf-8") as f:
-            toml.dump(self.config, f)
+            toml.dump(data, f)
 
     def create_default_config(self, scope: str = "project"):
         """Create a default configuration file."""
@@ -346,95 +361,21 @@ def install_with_progress(
     if output.level == OutputLevel.QUIET:
         return install_script_quiet(script_path, options)
 
-    elif output.level == OutputLevel.NORMAL:
-        # Simple spinner for normal mode
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=output.console,
-            transient=True,
-        ) as progress:
-            task = progress.add_task("Installing...", total=None)
-            result = install_script_quiet(script_path, options)
-            progress.update(task, description="Complete!")
-            return result
+    # Show verbose info before installing
+    if output.level.value >= OutputLevel.VERBOSE.value:
+        header = parse_pep723_header(script_path)
+        output.verbose(f"Dependencies: {header.get('dependencies', [])}")
 
-    else:
-        # Detailed progress for verbose/debug modes
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=output.console,
-            transient=True,
-        ) as progress:
-            # Step 1: Parse metadata
-            task1 = progress.add_task("Parsing PEP723 metadata...", total=None)
-            header = parse_pep723_header(script_path)
-            output.verbose(f"Dependencies: {header.get('dependencies', [])}")
-            progress.update(task1, completed=True)
-
-            # Step 2: Generate package
-            task2 = progress.add_task("Generating package...", total=None)
-
-            # Parse metadata for package generation
-            header = parse_pep723_header(script_path)
-            requires_python = header.get("requires-python") or header.get(
-                "requires_python"
-            )
-            dependencies = header.get("dependencies") or header.get("dependencies", [])
-            if isinstance(dependencies, str):
-                dependencies = [dependencies]
-
-            # Validate script
-            syntax_ok, syntax_error = validate_script_syntax(script_path)
-            if not syntax_ok:
-                output.error(syntax_error)
-                return 1
-
-            source_text = read_script_source(script_path)
-            script_body = strip_pep723_header_and_main(source_text)
-
-            if not validate_script_has_main(source_text):
-                output.error(
-                    f"Script {script_path.name} does not define a main() function"
-                )
-                return 1
-
-            cli_name, module_name = derive_tool_name(script_path, options.get("name"))
-            version = options.get("version", "0.1.0")
-            description = "Auto-generated package"
-            source_hash = compute_hash(script_path)
-
-            # Setup temp directory
-            tempdir = options.get("tempdir")
-            if tempdir:
-                base_tmp = Path(tempdir)
-                base_tmp.mkdir(parents=True, exist_ok=True)
-            else:
-                base_tmp = Path(tempfile.mkdtemp(prefix="uvs-"))
-
-            pkg_dir = write_package(
-                base_tmp,
-                cli_name,
-                module_name,
-                version,
-                description,
-                requires_python,
-                dependencies,
-                script_path,
-                source_hash,
-                script_body,
-            )
-
-            output.debug(f"Package at: {pkg_dir}")
-            progress.update(task2, completed=True)
-
-            # Step 3: Install
-            task3 = progress.add_task("Installing with uv...", total=None)
-            result = uvs.run_uv_install(pkg_dir)
-            progress.update(task3, completed=True)
-
-            return result
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=output.console,
+        transient=True,
+    ) as progress:
+        task = progress.add_task("Installing...", total=None)
+        result = install_script_quiet(script_path, options)
+        progress.update(task, description="Complete!")
+        return result
 
 
 def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
@@ -479,8 +420,7 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
                 # No changes, skip installation
                 return 0
 
-    # Get description from docstring
-    description = "Auto-generated package"
+    description = extract_description(source_text)
 
     # Get source hash
     source_hash = compute_hash(script_path)
@@ -537,9 +477,8 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
                 "version": version,
             }
             save_registry(registry)
-        except Exception:
-            # Don't fail if registry update fails
-            pass
+        except Exception as e:
+            print(f"Warning: Failed to update registry: {e}")
 
     return result
 
