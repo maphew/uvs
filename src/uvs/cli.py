@@ -971,7 +971,6 @@ def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
         uvs uninstall --dry-run tool  # Preview what would be uninstalled
     """
     output = ctx.obj["output"]
-    config = ctx.obj["config"]
 
     # Check if either tool_name or --all is specified
     if not tool_name and not uninstall_all:

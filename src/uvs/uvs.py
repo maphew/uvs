@@ -422,13 +422,16 @@ def validate_script_syntax(path: Path) -> tuple[bool, str]:
 
 
 def validate_script_has_main(source: str) -> bool:
-    """Check if the script source defines a main() function."""
+    """Check if the script source defines a top-level main() function."""
     try:
         tree = ast.parse(source)
     except SyntaxError:
         return False
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == "main":
+    for node in tree.body:
+        if (
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == "main"
+        ):
             return True
     return False
 

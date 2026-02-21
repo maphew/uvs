@@ -197,7 +197,7 @@ def main():
             debug = "--debug" in args
 
             # Handle global options at start
-            if args and args[0] in [
+            while args and args[0] in [
                 "--quiet",
                 "-q",
                 "--verbose",
