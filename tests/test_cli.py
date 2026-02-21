@@ -4,9 +4,11 @@ import tempfile
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock, call
+from click.testing import CliRunner
 
 from uvs.cli import (
     ConfigManager,
+    cli,
     parse_config_value,
 )
 
@@ -73,6 +75,17 @@ class TestConfigManager:
             files = config._get_config_files()
             assert files["global"] == Path("/home/user/.config/uvs/config.toml")
             assert files["project"] == Path("/project/uvs.toml")
+            assert "env" not in files
+
+    def test_get_config_files_with_env_override(self, isolated_temp_dir, monkeypatch):
+        """Test config file path resolution with UVS_CONFIG_DIR override."""
+        monkeypatch.setenv("UVS_CONFIG_DIR", "/env/config")
+        with patch('pathlib.Path.home', return_value=Path("/home/user")), \
+              patch('pathlib.Path.cwd', return_value=Path("/project")), \
+              patch('pathlib.Path.exists', return_value=True):
+            config = ConfigManager()
+            files = config._get_config_files()
+            assert files["env"] == Path("/env/config/config.toml")
 
     def test_merge_config(self, isolated_temp_dir):
         """Test config merging."""
@@ -151,3 +164,46 @@ class TestConfigSecurity:
         # This should not execute code
         result = parse_config_value("__import__('os').system('echo pwned')")
         assert result == "__import__('os').system('echo pwned')"
+
+
+class TestConfigCommands:
+    """Test config command behavior."""
+
+    def test_config_get_global_scope(self, isolated_temp_dir, monkeypatch):
+        """config get --global reads global scope, not merged/project."""
+        home = isolated_temp_dir / "home"
+        global_dir = home / ".config" / "uvs"
+        global_dir.mkdir(parents=True)
+        (global_dir / "config.toml").write_text(
+            '[default]\npython = "3.12"\n', encoding="utf-8"
+        )
+        (isolated_temp_dir / "uvs.toml").write_text(
+            '[default]\npython = "3.11"\n', encoding="utf-8"
+        )
+        monkeypatch.setenv("HOME", str(home))
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["config", "get", "--global", "default.python"])
+
+        assert result.exit_code == 0
+        assert "default.python = 3.12" in result.output
+
+    def test_config_list_global_scope(self, isolated_temp_dir, monkeypatch):
+        """config list --global shows global values."""
+        home = isolated_temp_dir / "home"
+        global_dir = home / ".config" / "uvs"
+        global_dir.mkdir(parents=True)
+        (global_dir / "config.toml").write_text(
+            '[default]\npython = "3.12"\n', encoding="utf-8"
+        )
+        (isolated_temp_dir / "uvs.toml").write_text(
+            '[default]\npython = "3.11"\n', encoding="utf-8"
+        )
+        monkeypatch.setenv("HOME", str(home))
+
+        runner = CliRunner()
+        result = runner.invoke(cli, ["--no-color", "config", "list", "--global"])
+
+        assert result.exit_code == 0
+        assert "3.12" in result.output
+        assert "3.11" not in result.output

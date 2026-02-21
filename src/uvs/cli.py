@@ -117,12 +117,15 @@ class ConfigManager:
     def _get_config_dirs(self) -> Dict[str, Path]:
         """Get configuration directory paths."""
         home = Path.home()
+        env_config_dir = os.environ.get("UVS_CONFIG_DIR")
 
-        return {
+        config_dirs: Dict[str, Path] = {
             "global": home / ".config" / "uvs",
             "project": Path.cwd(),
-            "env": Path(os.environ.get("UVS_CONFIG_DIR", "")),
         }
+        if env_config_dir:
+            config_dirs["env"] = Path(env_config_dir)
+        return config_dirs
 
     def _get_config_files(self) -> Dict[str, Path]:
         """Get all possible config file paths."""
@@ -138,8 +141,8 @@ class ConfigManager:
         files["project_hidden"] = project_dir / ".uvs.toml"
 
         # Environment override
-        env_dir = self.config_dirs["env"]
-        if env_dir.exists():
+        env_dir = self.config_dirs.get("env")
+        if env_dir and env_dir.exists():
             files["env"] = env_dir / "config.toml"
 
         return files
@@ -183,10 +186,35 @@ class ConfigManager:
                 # Unknown section, add it anyway
                 self.config[section] = values
 
-    def get(self, key: str, default: Any = None) -> Any:
+    def _merged_scope_data(self, scope: str) -> Dict[str, Any]:
+        """Return configuration data for a specific scope."""
+        if scope == "global":
+            return self._scope_configs.get("global", {})
+        if scope == "project":
+            data: Dict[str, Any] = {}
+            project_data = self._scope_configs.get("project", {})
+            hidden_data = self._scope_configs.get("project_hidden", {})
+            for section, values in project_data.items():
+                if isinstance(values, dict):
+                    data.setdefault(section, {}).update(values)
+                else:
+                    data[section] = values
+            for section, values in hidden_data.items():
+                if isinstance(values, dict):
+                    data.setdefault(section, {}).update(values)
+                else:
+                    data[section] = values
+            return data
+        raise ValueError("scope must be 'global' or 'project'")
+
+    def get(self, key: str, default: Any = None, scope: str | None = None) -> Any:
         """Get a configuration value using dot notation."""
         keys = key.split(".")
-        value = self.config
+        value: Any
+        if scope is None:
+            value = self.config
+        else:
+            value = self._merged_scope_data(scope)
 
         for k in keys:
             if isinstance(value, dict) and k in value:
@@ -195,6 +223,10 @@ class ConfigManager:
                 return default
 
         return value
+
+    def get_scope_config(self, scope: str) -> Dict[str, Any]:
+        """Get all configuration values for a specific scope."""
+        return self._merged_scope_data(scope)
 
     def set(self, key: str, value: Any, scope: str = "project"):
         """Set a configuration value."""
@@ -1104,7 +1136,8 @@ def get(ctx, key, global_scope):
     output = ctx.obj["output"]
     config_manager = ctx.obj["config"]
 
-    value = config_manager.get(key)
+    scope = "global" if global_scope else "project"
+    value = config_manager.get(key, scope=scope)
     if value is not None:
         output.print(f"{key} = {value}")
     else:
@@ -1128,7 +1161,8 @@ def list(ctx, global_scope):
     config_manager = ctx.obj["config"]
 
     # Convert config to dict for display
-    config_dict = config_manager.config
+    scope = "global" if global_scope else "project"
+    config_dict = config_manager.get_scope_config(scope)
 
     # Display as table
     from rich.table import Table
