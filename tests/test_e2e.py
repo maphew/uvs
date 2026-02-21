@@ -73,7 +73,11 @@ def mock_uv_install():
 
     def mock_subprocess_run(cmd, **kwargs):
         # Mock successful uv tool install
-        if isinstance(cmd, list) and len(cmd) >= 3 and cmd[:3] == ["uv", "tool", "install"]:
+        if (
+            isinstance(cmd, list)
+            and len(cmd) >= 3
+            and cmd[:3] == ["uv", "tool", "install"]
+        ):
             mock_result = MagicMock()
             mock_result.returncode = 0
             mock_result.stdout = f"Installed {cmd[-1].split('/')[-1]} successfully"
@@ -82,17 +86,18 @@ def mock_uv_install():
         # For other commands, use real subprocess
         return original_run(cmd, **kwargs)
 
-    with patch('subprocess.run', side_effect=mock_subprocess_run) as mock_run:
+    with patch("subprocess.run", side_effect=mock_subprocess_run) as mock_run:
         yield mock_run
 
 
 @pytest.fixture(autouse=True)
 def mock_run_uv_install():
     """Mock uv install to always succeed."""
+
     def mock_run_uv_install_func(pkg_dir, **kwargs):
         return 0
 
-    with patch('uvs.uvs.run_uv_install', side_effect=mock_run_uv_install_func):
+    with patch("uvs.uvs.run_uv_install", side_effect=mock_run_uv_install_func):
         yield
 
 
@@ -103,13 +108,13 @@ class TestEndToEnd:
     def setup_test_environment(self, isolated_temp_dir, mock_registry_reset):
         """Set up isolated test environment for each test."""
         self.temp_dir = isolated_temp_dir
-        self.original_home = os.environ.get('HOME')
-        self.original_xdg_config_home = os.environ.get('XDG_CONFIG_HOME')
+        self.original_home = os.environ.get("HOME")
+        self.original_xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
 
         # Set up isolated home directory for registry
         self.fake_home = self.temp_dir / "fake_home"
         self.fake_home.mkdir()
-        os.environ['HOME'] = str(self.fake_home)
+        os.environ["HOME"] = str(self.fake_home)
 
         # Create sample PEP723 scripts
         self.create_sample_scripts()
@@ -175,7 +180,9 @@ def main():
     print("This should not install")
 """)
 
-    def run_uvs_command(self, args: List[str], mock_subprocess=None, **kwargs) -> MagicMock:
+    def run_uvs_command(
+        self, args: List[str], mock_subprocess=None, **kwargs
+    ) -> MagicMock:
         """Run uvs command using direct function calls for speed."""
         # Mock the subprocess result for compatibility
         result = MagicMock()
@@ -190,7 +197,14 @@ def main():
             debug = "--debug" in args
 
             # Handle global options at start
-            if args and args[0] in ["--quiet", "-q", "--verbose", "-v", "--debug", "--no-color"]:
+            while args and args[0] in [
+                "--quiet",
+                "-q",
+                "--verbose",
+                "-v",
+                "--debug",
+                "--no-color",
+            ]:
                 args = args[1:]
 
             if args and args[0] == "install":
@@ -221,13 +235,13 @@ def main():
                             i += 1
 
                     options = {
-                        'name': name,
-                        'version': version,
-                        'editable': editable,
-                        'tempdir': None,
-                        'python': None,
-                        'dry_run': dry_run,
-                        'update': False
+                        "name": name,
+                        "version": version,
+                        "editable": editable,
+                        "tempdir": None,
+                        "python": None,
+                        "dry_run": dry_run,
+                        "update": False,
                     }
 
                     try:
@@ -248,22 +262,37 @@ def main():
                 elif "--all" in args:
                     # Batch install - simplified for testing
                     target_dir = Path(args[-1]) if args[-1] != "--all" else Path(".")
-                    py_files = [p for p in target_dir.iterdir() if p.is_file() and p.suffix == ".py"]
+                    py_files = sorted(
+                        [
+                            p
+                            for p in target_dir.iterdir()
+                            if p.is_file() and p.suffix == ".py"
+                        ]
+                    )
                     success_count = 0
+                    failure_count = 0
                     for script_path in py_files:
                         options = {
-                            'name': None,
-                            'version': "0.1.0",
-                            'editable': False,
-                            'tempdir': None,
-                            'python': None,
-                            'dry_run': False,
-                            'update': False
+                            "name": None,
+                            "version": "0.1.0",
+                            "editable": False,
+                            "tempdir": None,
+                            "python": None,
+                            "dry_run": False,
+                            "update": False,
                         }
                         if install_script_quiet(script_path, options) == 0:
                             success_count += 1
-                    result.returncode = 0
-                    result.stdout = f"Successfully installed {success_count} scripts"
+                        else:
+                            failure_count += 1
+                    if failure_count > 0:
+                        result.returncode = 1
+                        result.stdout = f"Completed with {failure_count} failures"
+                    else:
+                        result.returncode = 0
+                        result.stdout = (
+                            f"Successfully installed {success_count} scripts"
+                        )
 
             elif args[0] == "list":
                 # Parse arguments, skip global options
@@ -279,6 +308,7 @@ def main():
                         i += 1
 
                 from uvs.uvs import load_registry
+
                 registry = load_registry()
                 tools = registry.get("scripts", {})
                 if not tools:
@@ -289,16 +319,28 @@ def main():
                     return result
 
                 if output_format == "json":
-                    result.stdout = '{"tools":' + json.dumps(tools) + ',"count":' + str(len(tools)) + '}'
+                    result.stdout = (
+                        '{"tools":'
+                        + json.dumps(tools)
+                        + ',"count":'
+                        + str(len(tools))
+                        + "}"
+                    )
                 elif output_format == "simple":
-                    result.stdout = "\n".join(f"{name} <- {info['source_path']} (v{info['version']})" for name, info in tools.items())
+                    result.stdout = "\n".join(
+                        f"{name} <- {info['source_path']} (v{info['version']})"
+                        for name, info in tools.items()
+                    )
                 else:  # table format
-                    result.stdout = "\n".join(f"{name}: {info['source_path']}" for name, info in tools.items())
+                    result.stdout = "\n".join(
+                        f"{name}: {info['source_path']}" for name, info in tools.items()
+                    )
 
             elif args[0] == "show":
                 if len(args) >= 2:
                     tool_name = args[1]
                     from uvs.uvs import load_registry
+
                     registry = load_registry()
                     tool_info = registry.get("scripts", {}).get(tool_name)
                     if tool_info:
@@ -310,6 +352,7 @@ def main():
             elif args[0] == "update":
                 if "--all" in args:
                     from uvs.uvs import load_registry
+
                     registry = load_registry()
                     tools = registry.get("scripts", {})
                     updated_count = 0
@@ -321,13 +364,13 @@ def main():
                                 old_ver = tool_info["version"]
                                 new_ver = bump_patch_version(old_ver)
                                 options = {
-                                    'name': tool_name,
-                                    'version': new_ver,
-                                    'editable': False,
-                                    'tempdir': None,
-                                    'python': None,
-                                    'dry_run': False,
-                                    'update': True
+                                    "name": tool_name,
+                                    "version": new_ver,
+                                    "editable": False,
+                                    "tempdir": None,
+                                    "python": None,
+                                    "dry_run": False,
+                                    "update": True,
                                 }
                                 if install_script_quiet(script_path, options) == 0:
                                     updated_count += 1
@@ -340,6 +383,7 @@ def main():
                         return result
                     cli_name, _ = derive_tool_name(script_path, None)
                     from uvs.uvs import load_registry
+
                     registry = load_registry()
                     existing = registry.get("scripts", {}).get(cli_name)
                     if existing:
@@ -347,20 +391,24 @@ def main():
                         if current_hash != existing["source_hash"]:
                             new_ver = bump_patch_version(existing["version"])
                             options = {
-                                'name': cli_name,
-                                'version': new_ver,
-                                'editable': False,
-                                'tempdir': None,
-                                'python': None,
-                                'dry_run': False,
-                                'update': True
+                                "name": cli_name,
+                                "version": new_ver,
+                                "editable": False,
+                                "tempdir": None,
+                                "python": None,
+                                "dry_run": False,
+                                "update": True,
                             }
                             try:
-                                result.returncode = install_script_quiet(script_path, options)
+                                result.returncode = install_script_quiet(
+                                    script_path, options
+                                )
                                 if result.returncode == 0:
                                     result.stdout = f"Successfully updated {cli_name}"
                                 else:
-                                    result.stdout = f"No changes detected for {cli_name}"
+                                    result.stdout = (
+                                        f"No changes detected for {cli_name}"
+                                    )
                             except FileNotFoundError as e:
                                 result.returncode = 1
                                 result.stderr = f"Error: {script_path} does not exist"
@@ -372,19 +420,21 @@ def main():
                 if args[1] == "set" and len(args) >= 4:
                     # Store config value for testing
                     key, value = args[2], args[3]
-                    if not hasattr(self, '_config_values'):
+                    if not hasattr(self, "_config_values"):
                         self._config_values = {}
                     self._config_values[key] = value
                     result.stdout = f"Set {key} = {value} in project config"
                 elif args[1] == "get" and len(args) >= 3:
                     # Simplified config get - return the set value if it was set
                     key = args[2]
-                    if hasattr(self, '_config_values') and key in self._config_values:
+                    if hasattr(self, "_config_values") and key in self._config_values:
                         result.stdout = f"{key} = {self._config_values[key]}"
                     else:
                         result.stdout = f"{key} is not set"
                 elif args[1] == "list":
-                    result.stdout = "default:\n  python: 3.11\ninstall:\n  editable: false"
+                    result.stdout = (
+                        "default:\n  python: 3.11\ninstall:\n  editable: false"
+                    )
 
             elif args[0] == "uninstall":
                 # Parse uninstall arguments
@@ -393,7 +443,7 @@ def main():
                 dry_run = False
                 backup = True
                 force = False
-                
+
                 i = 1
                 while i < len(args):
                     if args[i] == "--all":
@@ -411,49 +461,56 @@ def main():
                     else:
                         tool_name = args[i]
                         i += 1
-                
+
                 # Check if either tool_name or --all is specified
                 if not tool_name and not uninstall_all:
                     result.returncode = 1
                     result.stderr = "Either TOOL_NAME or --all is required"
                     return result
-                
+
                 # Load registry
                 from uvs.uvs import load_registry
+
                 registry = load_registry()
                 tools = registry.get("scripts", {})
-                
+
                 if not tools:
                     result.stdout = "No tools installed"
                     return result
-                
+
                 if uninstall_all:
                     # Uninstall all tools
                     if not force and not dry_run:
                         # Check if user cancelled (mocked)
-                        if hasattr(self, '_cancel_uninstall') and self._cancel_uninstall:
+                        if (
+                            hasattr(self, "_cancel_uninstall")
+                            and self._cancel_uninstall
+                        ):
                             result.stdout = "Uninstall cancelled\n"
                             result.returncode = 0
                             return result
-                    
+
                     success_count = 0
                     failure_count = 0
-                    
+
                     for name, info in tools.items():
                         if dry_run:
                             result.stdout += f"Would uninstall: {name} (from {info['source_path']})\n"
                             success_count += 1
                             continue
-                        
+
                         # Check for verification failure
-                        if hasattr(self, '_verification_failure') and self._verification_failure:
+                        if (
+                            hasattr(self, "_verification_failure")
+                            and self._verification_failure
+                        ):
                             result.returncode = 1
                             result.stderr = f"Failed to verify uninstallation of {name}"
                             return result
-                        
+
                         # For actual uninstall, we'll simulate success
                         success_count += 1
-                    
+
                     if dry_run:
                         result.stdout = f"Would uninstall {success_count} tools\n"
                         result.returncode = 0
@@ -461,42 +518,55 @@ def main():
                         result.stdout = f"Uninstalled {success_count} tools, {failure_count} failed\n"
                         result.returncode = 1
                     else:
-                        result.stdout = f"Successfully uninstalled all {success_count} tools\n"
+                        result.stdout = (
+                            f"Successfully uninstalled all {success_count} tools\n"
+                        )
                         result.returncode = 0
-                
+
                 else:
                     # Uninstall single tool
                     if tool_name not in tools:
                         result.returncode = 1
                         result.stderr = f"No tool named '{tool_name}' found in registry"
                         return result
-                    
+
                     tool_info = tools[tool_name]
-                    
+
                     if dry_run:
                         result.stdout = f"Would uninstall: {tool_name} (from {tool_info['source_path']})\n"
                         result.returncode = 0
                         return result
-                    
+
                     if not force:
                         # Check if user cancelled (mocked)
-                        if hasattr(self, '_cancel_uninstall') and self._cancel_uninstall:
+                        if (
+                            hasattr(self, "_cancel_uninstall")
+                            and self._cancel_uninstall
+                        ):
                             result.stdout = "Uninstall cancelled\n"
                             result.returncode = 0
                             return result
-                    
+
                     # Check for verification failure
-                    if hasattr(self, '_verification_failure') and self._verification_failure:
+                    if (
+                        hasattr(self, "_verification_failure")
+                        and self._verification_failure
+                    ):
                         result.returncode = 1
-                        result.stderr = f"Failed to verify uninstallation of {tool_name}"
+                        result.stderr = (
+                            f"Failed to verify uninstallation of {tool_name}"
+                        )
                         return result
-                    
+
                     # Check for already uninstalled scenario
-                    if hasattr(self, '_already_uninstalled') and self._already_uninstalled:
+                    if (
+                        hasattr(self, "_already_uninstalled")
+                        and self._already_uninstalled
+                    ):
                         result.stdout = f"Cleaned up registry entry for {tool_name}\n"
                         result.returncode = 0
                         return result
-                    
+
                     # For actual uninstall, we'll simulate success
                     result.stdout = f"Successfully uninstalled {tool_name}\n"
                     result.returncode = 0
@@ -510,6 +580,7 @@ def main():
     def get_registry(self) -> Dict[str, Any]:
         """Get current registry state from file."""
         from uvs.uvs import load_registry
+
         return load_registry()
 
     def test_install_single_script_workflow(self, mock_uv_install):
@@ -520,7 +591,9 @@ def main():
         Code snippet: uvs install hello.py
         """
         # Install the script
-        result = self.run_uvs_command(["install", str(self.basic_script)], mock_subprocess=mock_uv_install)
+        result = self.run_uvs_command(
+            ["install", str(self.basic_script)], mock_subprocess=mock_uv_install
+        )
 
         # Verify command succeeded
         assert result.returncode == 0
@@ -537,7 +610,9 @@ def main():
         assert "hello" in list_result.stdout
 
         # Verify tool details can be shown
-        show_result = self.run_uvs_command(["show", "hello"], mock_subprocess=mock_uv_install)
+        show_result = self.run_uvs_command(
+            ["show", "hello"], mock_subprocess=mock_uv_install
+        )
         assert show_result.returncode == 0
         assert "hello" in show_result.stdout
 
@@ -550,7 +625,10 @@ def main():
         """
         custom_name = "my-custom-tool"
 
-        result = self.run_uvs_command(["install", "--name", custom_name, str(self.basic_script)], mock_subprocess=mock_uv_install)
+        result = self.run_uvs_command(
+            ["install", "--name", custom_name, str(self.basic_script)],
+            mock_subprocess=mock_uv_install,
+        )
 
         assert result.returncode == 0
         assert f"Successfully installed {custom_name}" in result.stdout
@@ -591,7 +669,9 @@ def main():
         shutil.copy(self.batch_script1, scripts_dir / "batch1.py")
         shutil.copy(self.batch_script2, scripts_dir / "batch2.py")
 
-        result = self.run_uvs_command(["install", "--all", str(scripts_dir)], mock_subprocess=mock_uv_install)
+        result = self.run_uvs_command(
+            ["install", "--all", str(scripts_dir)], mock_subprocess=mock_uv_install
+        )
 
         assert result.returncode == 0
         assert "Successfully installed 2 scripts" in result.stdout
@@ -630,14 +710,18 @@ def main():
         Code snippet: uvs update script.py
         """
         # Install initial version
-        self.run_uvs_command(["install", str(self.basic_script)], mock_subprocess=mock_uv_install)
+        self.run_uvs_command(
+            ["install", str(self.basic_script)], mock_subprocess=mock_uv_install
+        )
 
         # Modify the script
         content = self.basic_script.read_text()
         self.basic_script.write_text(content + "\n    # Modified for update test\n")
 
         # Update the tool
-        update_result = self.run_uvs_command(["update", str(self.basic_script)], mock_subprocess=mock_uv_install)
+        update_result = self.run_uvs_command(
+            ["update", str(self.basic_script)], mock_subprocess=mock_uv_install
+        )
 
         assert update_result.returncode == 0
         assert "Successfully updated hello" in update_result.stdout
@@ -792,6 +876,7 @@ def main():
         finally:
             # Clean up
             import shutil
+
             shutil.rmtree(outside_dir, ignore_errors=True)
 
     def test_security_config_injection_prevention(self):
@@ -804,7 +889,9 @@ def main():
         dangerous_value = "__import__('os').system('echo pwned')"
 
         # Set dangerous config
-        set_result = self.run_uvs_command(["config", "set", "test.value", dangerous_value])
+        set_result = self.run_uvs_command(
+            ["config", "set", "test.value", dangerous_value]
+        )
         assert set_result.returncode == 0
 
         # Get it back - should be the string, not executed
@@ -868,7 +955,9 @@ def main():
         """
         custom_version = "2.0.0"
 
-        result = self.run_uvs_command(["install", "--version", custom_version, str(self.basic_script)])
+        result = self.run_uvs_command(
+            ["install", "--version", custom_version, str(self.basic_script)]
+        )
 
         assert result.returncode == 0
 
@@ -914,7 +1003,8 @@ def main():
         Code snippet: Script with non-ASCII characters in docstrings and code
         """
         unicode_script = self.temp_dir / "unicode.py"
-        unicode_script.write_text("""# /// script
+        unicode_script.write_text(
+            """# /// script
 # requires-python = ">=3.8"
 # dependencies = ["click"]
 # ///
@@ -925,7 +1015,9 @@ def main():
 
 if __name__ == "__main__":
     main()
-""", encoding='utf-8')
+""",
+            encoding="utf-8",
+        )
 
         result = self.run_uvs_command(["install", str(unicode_script)])
 
@@ -984,7 +1076,10 @@ if __name__ == "__main__":
         install_result = self.run_uvs_command(["install", str(nonexistent_file)])
 
         assert install_result.returncode != 0
-        assert "does not exist" in install_result.stderr.lower() or "no such file" in install_result.stderr.lower()
+        assert (
+            "does not exist" in install_result.stderr.lower()
+            or "no such file" in install_result.stderr.lower()
+        )
 
         # Test: uvs show on missing tool
         show_result = self.run_uvs_command(["show", "nonexistent-tool"])
@@ -1004,6 +1099,7 @@ if __name__ == "__main__":
 
         # Simulate registry corruption by clearing it
         from uvs.uvs import load_registry, save_registry
+
         registry = load_registry()
         registry["scripts"].clear()
         save_registry(registry)
@@ -1032,28 +1128,32 @@ if __name__ == "__main__":
         Code snippet: uvs uninstall my-tool
         """
         # Install a tool first
-        self.run_uvs_command(["install", str(self.basic_script)], mock_subprocess=mock_uv_install)
-        
+        self.run_uvs_command(
+            ["install", str(self.basic_script)], mock_subprocess=mock_uv_install
+        )
+
         # Verify tool is installed
         registry = self.get_registry()
         assert "hello" in registry["scripts"]
-        
+
         # Mock the uninstall subprocess calls
-        with patch('subprocess.run') as mock_run:
+        with patch("subprocess.run") as mock_run:
             # Mock successful uv tool uninstall
             mock_run.return_value = MagicMock(returncode=0, stdout="Uninstalled hello")
-            
+
             # Mock verify_tool_uninstalled to return True
-            with patch('uvs.uvs.verify_tool_uninstalled', return_value=True):
+            with patch("uvs.uvs.verify_tool_uninstalled", return_value=True):
                 # Mock cleanup_registry_entry to return True
-                with patch('uvs.uvs.cleanup_registry_entry', return_value=True):
+                with patch("uvs.uvs.cleanup_registry_entry", return_value=True):
                     # Mock backup_registry
-                    with patch('uvs.uvs.backup_registry') as mock_backup:
+                    with patch("uvs.uvs.backup_registry") as mock_backup:
                         mock_backup.return_value = Path("/tmp/backup.json")
-                        
+
                         # Run uninstall command
-                        result = self.run_uvs_command(["uninstall", "hello"], mock_subprocess=mock_uv_install)
-                        
+                        result = self.run_uvs_command(
+                            ["uninstall", "hello"], mock_subprocess=mock_uv_install
+                        )
+
                         assert result.returncode == 0
                         assert "Successfully uninstalled hello" in result.stdout
 
@@ -1066,10 +1166,10 @@ if __name__ == "__main__":
         """
         # First install a tool to ensure registry exists
         self.run_uvs_command(["install", str(self.basic_script)])
-        
+
         # Then try to uninstall a non-existent tool
         result = self.run_uvs_command(["uninstall", "nonexistent-tool"])
-        
+
         assert result.returncode != 0
         assert "No tool named 'nonexistent-tool' found" in result.stderr
 
@@ -1081,11 +1181,13 @@ if __name__ == "__main__":
         Code snippet: uvs uninstall --dry-run my-tool
         """
         # Install a tool first
-        self.run_uvs_command(["install", str(self.basic_script)], mock_subprocess=mock_uv_install)
-        
+        self.run_uvs_command(
+            ["install", str(self.basic_script)], mock_subprocess=mock_uv_install
+        )
+
         # Run dry-run uninstall
         result = self.run_uvs_command(["uninstall", "--dry-run", "hello"])
-        
+
         assert result.returncode == 0
         assert "Would uninstall: hello" in result.stdout
 
@@ -1097,33 +1199,41 @@ if __name__ == "__main__":
         Code snippet: uvs uninstall --all
         """
         # Install multiple tools
-        self.run_uvs_command(["install", str(self.basic_script)], mock_subprocess=mock_uv_install)
-        self.run_uvs_command(["install", str(self.named_script)], mock_subprocess=mock_uv_install)
-        
+        self.run_uvs_command(
+            ["install", str(self.basic_script)], mock_subprocess=mock_uv_install
+        )
+        self.run_uvs_command(
+            ["install", str(self.named_script)], mock_subprocess=mock_uv_install
+        )
+
         # Verify tools are installed
         registry = self.get_registry()
         assert len(registry["scripts"]) == 2
-        
+
         # Mock the uninstall subprocess calls
-        with patch('subprocess.run') as mock_run:
+        with patch("subprocess.run") as mock_run:
             # Mock successful uv tool uninstalls
             mock_run.return_value = MagicMock(returncode=0, stdout="Uninstalled")
-            
+
             # Mock verify_tool_uninstalled to return True
-            with patch('uvs.uvs.verify_tool_uninstalled', return_value=True):
+            with patch("uvs.uvs.verify_tool_uninstalled", return_value=True):
                 # Mock cleanup_registry_entry to return True
-                with patch('uvs.uvs.cleanup_registry_entry', return_value=True):
+                with patch("uvs.uvs.cleanup_registry_entry", return_value=True):
                     # Mock backup_registry
-                    with patch('uvs.uvs.backup_registry') as mock_backup:
+                    with patch("uvs.uvs.backup_registry") as mock_backup:
                         mock_backup.return_value = Path("/tmp/backup.json")
-                        
+
                         # Mock click.confirm to return True
-                        with patch('click.confirm', return_value=True):
+                        with patch("click.confirm", return_value=True):
                             # Run uninstall all command
-                            result = self.run_uvs_command(["uninstall", "--all"], mock_subprocess=mock_uv_install)
-                            
+                            result = self.run_uvs_command(
+                                ["uninstall", "--all"], mock_subprocess=mock_uv_install
+                            )
+
                             assert result.returncode == 0
-                            assert "Successfully uninstalled all 2 tools" in result.stdout
+                            assert (
+                                "Successfully uninstalled all 2 tools" in result.stdout
+                            )
 
     def test_uninstall_already_uninstalled(self, mock_uv_install):
         """
@@ -1142,24 +1252,25 @@ if __name__ == "__main__":
             "version": "0.1.0",
         }
         from uvs.uvs import save_registry
+
         save_registry(registry)
-        
+
         # Mock uv tool uninstall to fail (tool not in uv)
-        with patch('subprocess.run') as mock_run:
+        with patch("subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=1, stderr="Tool not found")
-            
+
             # Set flag to simulate already uninstalled scenario
             self._already_uninstalled = True
             try:
                 # Run uninstall command
                 result = self.run_uvs_command(["uninstall", "orphaned-tool"])
-                
+
                 assert result.returncode == 0
                 assert "Cleaned up registry entry for orphaned-tool" in result.stdout
             finally:
                 # Clean up flag
-                if hasattr(self, '_already_uninstalled'):
-                    delattr(self, '_already_uninstalled')
+                if hasattr(self, "_already_uninstalled"):
+                    delattr(self, "_already_uninstalled")
 
     def test_uninstall_with_various_options(self, mock_uv_install):
         """
@@ -1169,21 +1280,25 @@ if __name__ == "__main__":
         Code snippet: uvs uninstall --force --no-backup my-tool
         """
         # Install a tool first
-        self.run_uvs_command(["install", str(self.basic_script)], mock_subprocess=mock_uv_install)
-        
+        self.run_uvs_command(
+            ["install", str(self.basic_script)], mock_subprocess=mock_uv_install
+        )
+
         # Mock the uninstall subprocess calls
-        with patch('subprocess.run') as mock_run:
+        with patch("subprocess.run") as mock_run:
             # Mock successful uv tool uninstall
             mock_run.return_value = MagicMock(returncode=0, stdout="Uninstalled hello")
-            
+
             # Mock verify_tool_uninstalled to return True
-            with patch('uvs.uvs.verify_tool_uninstalled', return_value=True):
+            with patch("uvs.uvs.verify_tool_uninstalled", return_value=True):
                 # Mock cleanup_registry_entry to return True
-                with patch('uvs.uvs.cleanup_registry_entry', return_value=True):
+                with patch("uvs.uvs.cleanup_registry_entry", return_value=True):
                     # Run uninstall with --force and --no-backup
-                    result = self.run_uvs_command(["uninstall", "--force", "--no-backup", "hello"],
-                                                mock_subprocess=mock_uv_install)
-                    
+                    result = self.run_uvs_command(
+                        ["uninstall", "--force", "--no-backup", "hello"],
+                        mock_subprocess=mock_uv_install,
+                    )
+
                     assert result.returncode == 0
                     assert "Successfully uninstalled hello" in result.stdout
 
@@ -1195,26 +1310,30 @@ if __name__ == "__main__":
         Code snippet: uvs uninstall --all (user cancels)
         """
         # Install multiple tools
-        self.run_uvs_command(["install", str(self.basic_script)], mock_subprocess=mock_uv_install)
-        self.run_uvs_command(["install", str(self.named_script)], mock_subprocess=mock_uv_install)
-        
+        self.run_uvs_command(
+            ["install", str(self.basic_script)], mock_subprocess=mock_uv_install
+        )
+        self.run_uvs_command(
+            ["install", str(self.named_script)], mock_subprocess=mock_uv_install
+        )
+
         # Verify tools are installed
         registry = self.get_registry()
         assert len(registry["scripts"]) == 2
-        
+
         # Set flag to simulate user cancellation
         self._cancel_uninstall = True
         try:
             # Run uninstall all command
             result = self.run_uvs_command(["uninstall", "--all"])
-            
+
             assert result.returncode == 0
             assert "Uninstall cancelled" in result.stdout
         finally:
             # Clean up flag
-            if hasattr(self, '_cancel_uninstall'):
-                delattr(self, '_cancel_uninstall')
-            
+            if hasattr(self, "_cancel_uninstall"):
+                delattr(self, "_cancel_uninstall")
+
             # Verify tools are still installed
             registry = self.get_registry()
             assert len(registry["scripts"]) == 2
@@ -1227,25 +1346,27 @@ if __name__ == "__main__":
         Code snippet: uvs uninstall my-tool (user cancels)
         """
         # Install a tool first
-        self.run_uvs_command(["install", str(self.basic_script)], mock_subprocess=mock_uv_install)
-        
+        self.run_uvs_command(
+            ["install", str(self.basic_script)], mock_subprocess=mock_uv_install
+        )
+
         # Verify tool is installed
         registry = self.get_registry()
         assert "hello" in registry["scripts"]
-        
+
         # Set flag to simulate user cancellation
         self._cancel_uninstall = True
         try:
             # Run uninstall command
             result = self.run_uvs_command(["uninstall", "hello"])
-            
+
             assert result.returncode == 0
             assert "Uninstall cancelled" in result.stdout
         finally:
             # Clean up flag
-            if hasattr(self, '_cancel_uninstall'):
-                delattr(self, '_cancel_uninstall')
-            
+            if hasattr(self, "_cancel_uninstall"):
+                delattr(self, "_cancel_uninstall")
+
             # Verify tool is still installed
             registry = self.get_registry()
             assert "hello" in registry["scripts"]
@@ -1258,22 +1379,29 @@ if __name__ == "__main__":
         Code snippet: uvs uninstall my-tool (backup fails)
         """
         # Install a tool first
-        self.run_uvs_command(["install", str(self.basic_script)], mock_subprocess=mock_uv_install)
-        
+        self.run_uvs_command(
+            ["install", str(self.basic_script)], mock_subprocess=mock_uv_install
+        )
+
         # Mock the uninstall subprocess calls
-        with patch('subprocess.run') as mock_run:
+        with patch("subprocess.run") as mock_run:
             # Mock successful uv tool uninstall
             mock_run.return_value = MagicMock(returncode=0, stdout="Uninstalled hello")
-            
+
             # Mock verify_tool_uninstalled to return True
-            with patch('uvs.uvs.verify_tool_uninstalled', return_value=True):
+            with patch("uvs.uvs.verify_tool_uninstalled", return_value=True):
                 # Mock cleanup_registry_entry to return True
-                with patch('uvs.uvs.cleanup_registry_entry', return_value=True):
+                with patch("uvs.uvs.cleanup_registry_entry", return_value=True):
                     # Mock backup_registry to raise exception
-                    with patch('uvs.uvs.backup_registry', side_effect=Exception("Backup failed")):
+                    with patch(
+                        "uvs.uvs.backup_registry",
+                        side_effect=Exception("Backup failed"),
+                    ):
                         # Run uninstall command
-                        result = self.run_uvs_command(["uninstall", "hello"], mock_subprocess=mock_uv_install)
-                        
+                        result = self.run_uvs_command(
+                            ["uninstall", "hello"], mock_subprocess=mock_uv_install
+                        )
+
                         assert result.returncode == 0
                         assert "Successfully uninstalled hello" in result.stdout
 
@@ -1285,25 +1413,29 @@ if __name__ == "__main__":
         Code snippet: uvs uninstall my-tool (verification fails)
         """
         # Install a tool first
-        self.run_uvs_command(["install", str(self.basic_script)], mock_subprocess=mock_uv_install)
-        
+        self.run_uvs_command(
+            ["install", str(self.basic_script)], mock_subprocess=mock_uv_install
+        )
+
         # Mock the uninstall subprocess calls
-        with patch('subprocess.run') as mock_run:
+        with patch("subprocess.run") as mock_run:
             # Mock successful uv tool uninstall
             mock_run.return_value = MagicMock(returncode=0, stdout="Uninstalled hello")
-            
+
             # Set flag to simulate verification failure
             self._verification_failure = True
             try:
                 # Run uninstall command
-                result = self.run_uvs_command(["uninstall", "hello"], mock_subprocess=mock_uv_install)
-                
+                result = self.run_uvs_command(
+                    ["uninstall", "hello"], mock_subprocess=mock_uv_install
+                )
+
                 assert result.returncode != 0
                 assert "Failed to verify uninstallation of hello" in result.stderr
             finally:
                 # Clean up flag
-                if hasattr(self, '_verification_failure'):
-                    delattr(self, '_verification_failure')
+                if hasattr(self, "_verification_failure"):
+                    delattr(self, "_verification_failure")
 
     def test_uninstall_cleanup_failure(self, mock_uv_install):
         """
@@ -1313,23 +1445,27 @@ if __name__ == "__main__":
         Code snippet: uvs uninstall my-tool (cleanup fails)
         """
         # Install a tool first
-        self.run_uvs_command(["install", str(self.basic_script)], mock_subprocess=mock_uv_install)
-        
+        self.run_uvs_command(
+            ["install", str(self.basic_script)], mock_subprocess=mock_uv_install
+        )
+
         # Mock the uninstall subprocess calls
-        with patch('subprocess.run') as mock_run:
+        with patch("subprocess.run") as mock_run:
             # Mock successful uv tool uninstall
             mock_run.return_value = MagicMock(returncode=0, stdout="Uninstalled hello")
-            
+
             # Mock verify_tool_uninstalled to return True
-            with patch('uvs.uvs.verify_tool_uninstalled', return_value=True):
+            with patch("uvs.uvs.verify_tool_uninstalled", return_value=True):
                 # Mock cleanup_registry_entry to return False (cleanup fails)
-                with patch('uvs.uvs.cleanup_registry_entry', return_value=False):
+                with patch("uvs.uvs.cleanup_registry_entry", return_value=False):
                     # Mock backup_registry
-                    with patch('uvs.uvs.backup_registry') as mock_backup:
+                    with patch("uvs.uvs.backup_registry") as mock_backup:
                         mock_backup.return_value = Path("/tmp/backup.json")
-                        
+
                         # Run uninstall command
-                        result = self.run_uvs_command(["uninstall", "hello"], mock_subprocess=mock_uv_install)
-                        
+                        result = self.run_uvs_command(
+                            ["uninstall", "hello"], mock_subprocess=mock_uv_install
+                        )
+
                         assert result.returncode == 0
                         assert "Successfully uninstalled hello" in result.stdout

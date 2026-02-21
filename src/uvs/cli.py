@@ -42,6 +42,8 @@ from .uvs import (
     run_uv_uninstall,
     save_registry,
     strip_pep723_header_and_main,
+    validate_script_has_main,
+    validate_script_syntax,
     verify_tool_uninstalled,
     write_package,
 )
@@ -49,6 +51,7 @@ from .uvs import (
 
 class OutputLevel(Enum):
     """Output verbosity levels."""
+
     QUIET = 0
     NORMAL = 1
     VERBOSE = 2
@@ -64,7 +67,12 @@ class OutputManager:
         self.console = Console(no_color=no_color, quiet=(level == OutputLevel.QUIET))
         self.error_console = Console(stderr=True, no_color=no_color)
 
-    def print(self, message: str, level: OutputLevel = OutputLevel.NORMAL, style: Optional[str] = None):
+    def print(
+        self,
+        message: str,
+        level: OutputLevel = OutputLevel.NORMAL,
+        style: Optional[str] = None,
+    ):
         """Print message if current output level allows it."""
         if self.level.value >= level.value:
             if style:
@@ -227,25 +235,18 @@ class ConfigManager:
     def create_default_config(self, scope: str = "project"):
         """Create a default configuration file."""
         default_config = {
-            "default": {
-                "python": "3.11",
-                "output_format": "table",
-                "color": "auto"
-            },
+            "default": {"python": "3.11", "output_format": "table", "color": "auto"},
             "install": {
                 "default_version": "0.1.0",
                 "editable": False,
-                "dry_run": False
+                "dry_run": False,
             },
-            "registry": {
-                "backup": True,
-                "max_backups": 5
-            },
+            "registry": {"backup": True, "max_backups": 5},
             "ui": {
                 "progress_style": "rich",
                 "show_success": True,
-                "confirm_destructive": True
-            }
+                "confirm_destructive": True,
+            },
         }
 
         # Set the default config
@@ -264,9 +265,9 @@ class ConfigManager:
             return self.config_dirs["project"] / "uvs.toml"
 
 
-
-
-def show_success_message(output: OutputManager, tool_name: str, script_path: Path, version: str):
+def show_success_message(
+    output: OutputManager, tool_name: str, script_path: Path, version: str
+):
     """Display success message with Rich panel."""
     success_panel = Panel(
         f"[bold green]✓ Successfully installed[/bold green] [cyan]{tool_name}[/cyan]\n\n"
@@ -275,7 +276,7 @@ def show_success_message(output: OutputManager, tool_name: str, script_path: Pat
         f"[yellow]Run '{tool_name}' to use your new tool[/yellow]",
         title="Installation Complete",
         border_style="green",
-        padding=(1, 2)
+        padding=(1, 2),
     )
 
     output.console.print(success_panel)
@@ -283,7 +284,14 @@ def show_success_message(output: OutputManager, tool_name: str, script_path: Pat
 
 def show_tools_table(tools: Dict[str, Any], output: OutputManager):
     """Display installed tools in a Rich table."""
-    table = Table(show_header=True, header_style="bold magenta", box=None, show_edge=False, pad_edge=False, padding=(0, 1))
+    table = Table(
+        show_header=True,
+        header_style="bold magenta",
+        box=None,
+        show_edge=False,
+        pad_edge=False,
+        padding=(0, 1),
+    )
     table.add_column("Tool Name", style="cyan", no_wrap=True)
     table.add_column("Source Path", style="green")
     table.add_column("Version", style="yellow")
@@ -294,7 +302,7 @@ def show_tools_table(tools: Dict[str, Any], output: OutputManager):
             name,
             info["source_path"],
             info["version"],
-            info["installed_at"][:19]  # Remove microseconds
+            info["installed_at"][:19],  # Remove microseconds
         )
 
     output.console.print()
@@ -312,17 +320,14 @@ def show_tools_json(tools: Dict[str, Any], output: OutputManager):
     json_data = {
         "tools": tools,
         "count": len(tools),
-        "generated_at": datetime.now().isoformat()
+        "generated_at": datetime.now().isoformat(),
     }
 
     json_str = json.dumps(json_data, indent=2)
     syntax = Syntax(json_str, "json", theme="monokai", line_numbers=True)
 
     panel = Panel(
-        syntax,
-        title="Installed Tools (JSON)",
-        border_style="blue",
-        padding=(1, 1)
+        syntax, title="Installed Tools (JSON)", border_style="blue", padding=(1, 1)
     )
 
     output.console.print(panel)
@@ -335,9 +340,7 @@ def show_tools_simple(tools: Dict[str, Any], output: OutputManager):
 
 
 def install_with_progress(
-    script_path: Path,
-    options: Dict[str, Any],
-    output: OutputManager
+    script_path: Path, options: Dict[str, Any], output: OutputManager
 ) -> int:
     """Install script with progress indicators."""
     if output.level == OutputLevel.QUIET:
@@ -349,7 +352,7 @@ def install_with_progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             console=output.console,
-            transient=True
+            transient=True,
         ) as progress:
             task = progress.add_task("Installing...", total=None)
             result = install_script_quiet(script_path, options)
@@ -362,9 +365,8 @@ def install_with_progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             console=output.console,
-            transient=True
+            transient=True,
         ) as progress:
-
             # Step 1: Parse metadata
             task1 = progress.add_task("Parsing PEP723 metadata...", total=None)
             header = parse_pep723_header(script_path)
@@ -376,22 +378,35 @@ def install_with_progress(
 
             # Parse metadata for package generation
             header = parse_pep723_header(script_path)
-            requires_python = header.get("requires-python") or header.get("requires_python")
+            requires_python = header.get("requires-python") or header.get(
+                "requires_python"
+            )
             dependencies = header.get("dependencies") or header.get("dependencies", [])
             if isinstance(dependencies, str):
                 dependencies = [dependencies]
 
+            # Validate script
+            syntax_ok, syntax_error = validate_script_syntax(script_path)
+            if not syntax_ok:
+                output.error(syntax_error)
+                return 1
+
             source_text = read_script_source(script_path)
             script_body = strip_pep723_header_and_main(source_text)
 
-            cli_name, module_name = derive_tool_name(script_path, options.get('name'))
-            version = options.get('version', '0.1.0')
-            import ast
+            if not validate_script_has_main(source_text):
+                output.error(
+                    f"Script {script_path.name} does not define a main() function"
+                )
+                return 1
+
+            cli_name, module_name = derive_tool_name(script_path, options.get("name"))
+            version = options.get("version", "0.1.0")
             description = "Auto-generated package"
             source_hash = compute_hash(script_path)
 
             # Setup temp directory
-            tempdir = options.get('tempdir')
+            tempdir = options.get("tempdir")
             if tempdir:
                 base_tmp = Path(tempdir)
                 base_tmp.mkdir(parents=True, exist_ok=True)
@@ -399,8 +414,16 @@ def install_with_progress(
                 base_tmp = Path(tempfile.mkdtemp(prefix="uvs-"))
 
             pkg_dir = write_package(
-                base_tmp, cli_name, module_name, version, description,
-                requires_python, dependencies, script_path, source_hash, script_body
+                base_tmp,
+                cli_name,
+                module_name,
+                version,
+                description,
+                requires_python,
+                dependencies,
+                script_path,
+                source_hash,
+                script_body,
             )
 
             output.debug(f"Package at: {pkg_dir}")
@@ -416,7 +439,6 @@ def install_with_progress(
 
 def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
     """Install script without progress indicators."""
-    import ast
 
     # Parse PEP723 header
     header = parse_pep723_header(script_path)
@@ -425,16 +447,27 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
     if isinstance(dependencies, str):
         dependencies = [dependencies]
 
+    # Validate script syntax
+    syntax_ok, syntax_error = validate_script_syntax(script_path)
+    if not syntax_ok:
+        print(f"Error: {syntax_error}")
+        return 1
+
     # Read and process script
     source_text = read_script_source(script_path)
     script_body = strip_pep723_header_and_main(source_text)
 
+    # Validate script has a main() function
+    if not validate_script_has_main(source_text):
+        print(f"Error: Script {script_path.name} does not define a main() function")
+        return 1
+
     # Derive names and version
-    cli_name, module_name = derive_tool_name(script_path, options.get('name'))
-    version = options.get('version', '0.1.0')
+    cli_name, module_name = derive_tool_name(script_path, options.get("name"))
+    version = options.get("version", "0.1.0")
 
     # Check for updates if requested
-    if options.get('update'):
+    if options.get("update"):
         registry = load_registry()
         existing = registry.get("scripts", {}).get(cli_name)
         if existing:
@@ -453,7 +486,7 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
     source_hash = compute_hash(script_path)
 
     # Setup temp directory
-    tempdir = options.get('tempdir')
+    tempdir = options.get("tempdir")
     if tempdir:
         base_tmp = Path(tempdir)
         base_tmp.mkdir(parents=True, exist_ok=True)
@@ -462,13 +495,23 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
 
     # Generate package
     pkg_dir = write_package(
-        base_tmp, cli_name, module_name, version, description,
-        requires_python, dependencies, script_path, source_hash, script_body
+        base_tmp,
+        cli_name,
+        module_name,
+        version,
+        description,
+        requires_python,
+        dependencies,
+        script_path,
+        source_hash,
+        script_body,
     )
 
     # Dry run mode
-    if options.get('dry_run'):
-        print(f"Dry run: Would install '{cli_name}' (version {version}) from {script_path}")
+    if options.get("dry_run"):
+        print(
+            f"Dry run: Would install '{cli_name}' (version {version}) from {script_path}"
+        )
         print(f"  Package would be generated at: {pkg_dir}")
         if dependencies:
             print(f"  Dependencies: {', '.join(dependencies)}")
@@ -478,9 +521,7 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
 
     # Install with uv
     result = uvs.run_uv_install(
-        pkg_dir,
-        editable=options.get('editable', False),
-        python=options.get('python')
+        pkg_dir, editable=options.get("editable", False), python=options.get("python")
     )
 
     if result == 0:
@@ -505,12 +546,13 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
 
 # Click CLI Definition
 
+
 @click.group(invoke_without_command=True)
-@click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
-@click.option('--quiet', '-q', is_flag=True, help='Suppress non-error output')
-@click.option('--debug', is_flag=True, help='Enable debug output')
-@click.option('--no-color', is_flag=True, help='Disable colored output')
-@click.option('--config', type=click.Path(), help='Path to configuration file')
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
+@click.option("--quiet", "-q", is_flag=True, help="Suppress non-error output")
+@click.option("--debug", is_flag=True, help="Enable debug output")
+@click.option("--no-color", is_flag=True, help="Disable colored output")
+@click.option("--config", type=click.Path(), help="Path to configuration file")
 @click.pass_context
 def cli(ctx, verbose, quiet, debug, no_color, config):
     """Install single-file PEP723 scripts as CLI tools using uv.
@@ -549,11 +591,11 @@ def cli(ctx, verbose, quiet, debug, no_color, config):
 
     # Create output manager
     output = OutputManager(level=level, no_color=no_color)
-    ctx.obj['output'] = output
+    ctx.obj["output"] = output
 
     # Load configuration
     config_manager = ConfigManager()
-    ctx.obj['config'] = config_manager
+    ctx.obj["config"] = config_manager
 
     # Show help if no command provided
     if ctx.invoked_subcommand is None:
@@ -562,16 +604,28 @@ def cli(ctx, verbose, quiet, debug, no_color, config):
 
 
 @cli.command()
-@click.argument('script', type=click.Path(exists=True), required=False)
-@click.option('--name', '-n', help='Override tool name (default: derived from filename)')
-@click.option('--version', default='0.1.0', help='Initial package version (default: 0.1.0)')
-@click.option('--editable', '-e', is_flag=True, help='Install in editable mode for development')
-@click.option('--tempdir', type=click.Path(), help='Directory for temporary package generation')
-@click.option('--python', help='Python version to use for installation (e.g., 3.11)')
-@click.option('--dry-run', is_flag=True, help='Generate package but do not install')
-@click.option('--all', 'install_all', is_flag=True, help='Install all .py files in directory')
+@click.argument("script", type=click.Path(exists=True), required=False)
+@click.option(
+    "--name", "-n", help="Override tool name (default: derived from filename)"
+)
+@click.option(
+    "--version", default="0.1.0", help="Initial package version (default: 0.1.0)"
+)
+@click.option(
+    "--editable", "-e", is_flag=True, help="Install in editable mode for development"
+)
+@click.option(
+    "--tempdir", type=click.Path(), help="Directory for temporary package generation"
+)
+@click.option("--python", help="Python version to use for installation (e.g., 3.11)")
+@click.option("--dry-run", is_flag=True, help="Generate package but do not install")
+@click.option(
+    "--all", "install_all", is_flag=True, help="Install all .py files in directory"
+)
 @click.pass_context
-def install(ctx, script, name, version, editable, tempdir, python, dry_run, install_all):
+def install(
+    ctx, script, name, version, editable, tempdir, python, dry_run, install_all
+):
     """Install a script as a CLI tool.
 
     \b
@@ -594,8 +648,8 @@ def install(ctx, script, name, version, editable, tempdir, python, dry_run, inst
         # dependencies = ["requests", "click"]
         # ///
     """
-    output = ctx.obj['output']
-    config = ctx.obj['config']
+    output = ctx.obj["output"]
+    config = ctx.obj["config"]
 
     # Apply configuration defaults
     if not editable:
@@ -610,7 +664,9 @@ def install(ctx, script, name, version, editable, tempdir, python, dry_run, inst
         if not install_all and script:
             script_path = Path(script)
             header = parse_pep723_header(script_path)
-            requires_python_in_script = header.get("requires-python") or header.get("requires_python")
+            requires_python_in_script = header.get("requires-python") or header.get(
+                "requires_python"
+            )
             if not requires_python_in_script:
                 python = config.get("default.python")
         else:
@@ -624,7 +680,9 @@ def install(ctx, script, name, version, editable, tempdir, python, dry_run, inst
             output.error("Target for --all must be an existing directory")
             return 1
 
-        py_files = sorted([p for p in target_dir.iterdir() if p.is_file() and p.suffix == ".py"])
+        py_files = sorted(
+            [p for p in target_dir.iterdir() if p.is_file() and p.suffix == ".py"]
+        )
         if not py_files:
             output.print(f"No .py files found in {target_dir}")
             return 0
@@ -635,13 +693,13 @@ def install(ctx, script, name, version, editable, tempdir, python, dry_run, inst
         for script_path in py_files:
             output.print(f"Processing {script_path.name}...")
             options_dict = {
-                'name': name,
-                'version': version,
-                'editable': editable,
-                'tempdir': tempdir,
-                'python': python,
-                'dry_run': dry_run,
-                'update': False
+                "name": name,
+                "version": version,
+                "editable": editable,
+                "tempdir": tempdir,
+                "python": python,
+                "dry_run": dry_run,
+                "update": False,
             }
 
             result = install_script_quiet(script_path, options_dict)
@@ -666,13 +724,13 @@ def install(ctx, script, name, version, editable, tempdir, python, dry_run, inst
 
         script_path = Path(script)
         options_dict = {
-            'name': name,
-            'version': version,
-            'editable': editable,
-            'tempdir': tempdir,
-            'python': python,
-            'dry_run': dry_run,
-            'update': False
+            "name": name,
+            "version": version,
+            "editable": editable,
+            "tempdir": tempdir,
+            "python": python,
+            "dry_run": dry_run,
+            "update": False,
         }
 
         result = install_with_progress(script_path, options_dict, output)
@@ -685,8 +743,13 @@ def install(ctx, script, name, version, editable, tempdir, python, dry_run, inst
 
 
 @cli.command()
-@click.option('--format', 'output_format', type=click.Choice(['table', 'json', 'simple']),
-              default='table', help='Output format (default: table)')
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["table", "json", "simple"]),
+    default="table",
+    help="Output format (default: table)",
+)
 @click.pass_context
 def list(ctx, output_format):
     """List all installed scripts.
@@ -697,7 +760,7 @@ def list(ctx, output_format):
         uvs list --format json      # JSON format
         uvs list --format simple    # Simple format
     """
-    output = ctx.obj['output']
+    output = ctx.obj["output"]
 
     registry = load_registry()
     tools = registry.get("scripts", {})
@@ -707,18 +770,23 @@ def list(ctx, output_format):
             output.print("No tools installed")
         return
 
-    if output_format == 'table':
+    if output_format == "table":
         show_tools_table(tools, output)
-    elif output_format == 'json':
+    elif output_format == "json":
         show_tools_json(tools, output)
     else:
         show_tools_simple(tools, output)
 
 
 @cli.command()
-@click.argument('tool_name')
-@click.option('--format', 'output_format', type=click.Choice(['table', 'json', 'simple']),
-              default='table', help='Output format (default: table)')
+@click.argument("tool_name")
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["table", "json", "simple"]),
+    default="table",
+    help="Output format (default: table)",
+)
 @click.pass_context
 def show(ctx, tool_name, output_format):
     """Show details about an installed tool.
@@ -728,7 +796,7 @@ def show(ctx, tool_name, output_format):
         uvs show my-tool             # Table format (default)
         uvs show --format json my-tool  # JSON format
     """
-    output = ctx.obj['output']
+    output = ctx.obj["output"]
 
     registry = load_registry()
     tool_info = registry.get("scripts", {}).get(tool_name)
@@ -736,13 +804,19 @@ def show(ctx, tool_name, output_format):
     if not tool_info:
         raise click.ClickException(f"No tool named '{tool_name}' found")
 
-    if output_format == 'json':
+    if output_format == "json":
         show_tools_json({tool_name: tool_info}, output)
     else:
         # Show detailed information
         from rich.table import Table
 
-        table = Table(title=f"Tool Details: {tool_name}", box=None, show_edge=False, pad_edge=False, padding=(0, 1))
+        table = Table(
+            title=f"Tool Details: {tool_name}",
+            box=None,
+            show_edge=False,
+            pad_edge=False,
+            padding=(0, 1),
+        )
         table.add_column("Property", style="cyan")
         table.add_column("Value", style="white")
 
@@ -758,9 +832,9 @@ def show(ctx, tool_name, output_format):
 
 
 @cli.command()
-@click.argument('script', type=click.Path(exists=True), required=False)
-@click.option('--all', 'update_all', is_flag=True, help='Update all installed tools')
-@click.option('--python', help='Python version for installation')
+@click.argument("script", type=click.Path(exists=True), required=False)
+@click.option("--all", "update_all", is_flag=True, help="Update all installed tools")
+@click.option("--python", help="Python version for installation")
 @click.pass_context
 def update(ctx, script, update_all, python):
     """Update an installed tool if the source changed.
@@ -771,7 +845,7 @@ def update(ctx, script, update_all, python):
         uvs update --all             # Update all tools
         uvs update --python 3.11 script.py  # Update with specific Python
     """
-    output = ctx.obj['output']
+    output = ctx.obj["output"]
 
     if update_all:
         # Update all installed tools
@@ -801,13 +875,13 @@ def update(ctx, script, update_all, python):
 
             # Update the tool
             options_dict = {
-                'name': tool_name,
-                'version': tool_info["version"],
-                'editable': False,  # Updates don't change editability
-                'tempdir': None,
-                'python': python,
-                'dry_run': False,
-                'update': True
+                "name": tool_name,
+                "version": tool_info["version"],
+                "editable": False,  # Updates don't change editability
+                "tempdir": None,
+                "python": python,
+                "dry_run": False,
+                "update": True,
             }
 
             result = install_script_quiet(script_path, options_dict)
@@ -850,13 +924,13 @@ def update(ctx, script, update_all, python):
 
         # Update the tool
         options_dict = {
-            'name': cli_name,
-            'version': existing["version"],
-            'editable': False,
-            'tempdir': None,
-            'python': python,
-            'dry_run': False,
-            'update': True
+            "name": cli_name,
+            "version": existing["version"],
+            "editable": False,
+            "tempdir": None,
+            "python": python,
+            "dry_run": False,
+            "update": True,
         }
 
         result = install_with_progress(script_path, options_dict, output)
@@ -871,37 +945,46 @@ def update(ctx, script, update_all, python):
 
 
 @cli.command()
-@click.argument('tool_name', required=False)
-@click.option('--all', 'uninstall_all', is_flag=True, help='Uninstall all installed tools')
-@click.option('--dry-run', is_flag=True, help='Show what would be uninstalled without actually uninstalling')
-@click.option('--backup/--no-backup', default=True, help='Create a backup of the registry before uninstalling')
-@click.option('--force', is_flag=True, help='Force uninstall without confirmation')
+@click.argument("tool_name", required=False)
+@click.option(
+    "--all", "uninstall_all", is_flag=True, help="Uninstall all installed tools"
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show what would be uninstalled without actually uninstalling",
+)
+@click.option(
+    "--backup/--no-backup",
+    default=True,
+    help="Create a backup of the registry before uninstalling",
+)
+@click.option("--force", is_flag=True, help="Force uninstall without confirmation")
 @click.pass_context
 def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
     """Uninstall an installed tool.
-    
+
     \b
     Examples:
         uvs uninstall my-tool         # Uninstall a specific tool
         uvs uninstall --all           # Uninstall all tools
         uvs uninstall --dry-run tool  # Preview what would be uninstalled
     """
-    output = ctx.obj['output']
-    config = ctx.obj['config']
-    
+    output = ctx.obj["output"]
+
     # Check if either tool_name or --all is specified
     if not tool_name and not uninstall_all:
         output.error("Either TOOL_NAME or --all is required")
         return 1
-    
+
     # Load registry
     registry = load_registry()
     tools = registry.get("scripts", {})
-    
+
     if not tools:
         output.print("No tools installed")
         return 0
-    
+
     # Create backup if requested
     if backup and not dry_run:
         try:
@@ -909,28 +992,34 @@ def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
             output.verbose(f"Created registry backup at: {backup_path}")
         except Exception as e:
             output.warning(f"Failed to create registry backup: {e}")
-    
+
     if uninstall_all:
         # Uninstall all tools
         if not force and not dry_run:
-            if not click.confirm(f"Are you sure you want to uninstall all {len(tools)} tools?"):
+            output.print(f"\nTools to uninstall ({len(tools)}):")
+            for name, info in tools.items():
+                output.print(f"  • {name}  ({info['source_path']})")
+            output.print("")
+            if not click.confirm(
+                f"Are you sure you want to uninstall all {len(tools)} tools?"
+            ):
                 output.print("Uninstall cancelled")
                 return 0
-        
+
         success_count = 0
         failure_count = 0
-        
+
         for name, info in tools.items():
             if dry_run:
                 output.print(f"Would uninstall: {name} (from {info['source_path']})")
                 success_count += 1
                 continue
-            
+
             output.print(f"Uninstalling {name}...")
-            
+
             # Run uv tool uninstall
             result = run_uv_uninstall(name)
-            
+
             if result == 0:
                 # Verify it's uninstalled
                 if verify_tool_uninstalled(name):
@@ -939,15 +1028,28 @@ def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
                         output.verbose(f"Removed {name} from registry")
                         success_count += 1
                     else:
-                        output.warning(f"Uninstalled {name} but failed to remove from registry")
-                        success_count += 1  # Still count as success since tool is uninstalled
+                        output.warning(
+                            f"Uninstalled {name} but failed to remove from registry"
+                        )
+                        success_count += (
+                            1  # Still count as success since tool is uninstalled
+                        )
                 else:
                     output.error(f"Failed to verify uninstallation of {name}")
                     failure_count += 1
             else:
-                output.error(f"Failed to uninstall {name}")
-                failure_count += 1
-        
+                # Check if the tool was already removed outside of uvs
+                if verify_tool_uninstalled(name):
+                    # Tool is already gone — clean up stale registry entry
+                    cleanup_registry_entry(name)
+                    output.warning(
+                        f"{name} was already uninstalled (cleaned up stale registry entry)"
+                    )
+                    success_count += 1
+                else:
+                    output.error(f"Failed to uninstall {name}")
+                    failure_count += 1
+
         if dry_run:
             output.print(f"Would uninstall {success_count} tools")
             return 0
@@ -957,29 +1059,31 @@ def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
         else:
             output.print(f"Successfully uninstalled all {success_count} tools")
             return 0
-    
+
     else:
         # Uninstall single tool
         if tool_name not in tools:
             output.error(f"No tool named '{tool_name}' found in registry")
             return 1
-        
+
         tool_info = tools[tool_name]
-        
+
         if dry_run:
-            output.print(f"Would uninstall: {tool_name} (from {tool_info['source_path']})")
+            output.print(
+                f"Would uninstall: {tool_name} (from {tool_info['source_path']})"
+            )
             return 0
-        
+
         if not force:
             if not click.confirm(f"Are you sure you want to uninstall '{tool_name}'?"):
                 output.print("Uninstall cancelled")
                 return 0
-        
+
         output.print(f"Uninstalling {tool_name}...")
-        
+
         # Run uv tool uninstall
         result = run_uv_uninstall(tool_name)
-        
+
         if result == 0:
             # Verify it's uninstalled
             if verify_tool_uninstalled(tool_name):
@@ -989,7 +1093,9 @@ def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
                     output.print(f"Successfully uninstalled {tool_name}")
                     return 0
                 else:
-                    output.warning(f"Uninstalled {tool_name} but failed to remove from registry")
+                    output.warning(
+                        f"Uninstalled {tool_name} but failed to remove from registry"
+                    )
                     return 0  # Still count as success since tool is uninstalled
             else:
                 output.error(f"Failed to verify uninstallation of {tool_name}")
@@ -1000,7 +1106,9 @@ def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
                 # Clean up the registry entry
                 if cleanup_registry_entry(tool_name):
                     output.verbose(f"Removed {tool_name} from registry")
-                    output.print(f"Cleaned up registry entry for {tool_name} (already uninstalled)")
+                    output.print(
+                        f"Cleaned up registry entry for {tool_name} (already uninstalled)"
+                    )
                     return 0
                 else:
                     output.warning(f"Failed to remove {tool_name} from registry")
@@ -1017,9 +1125,9 @@ def config():
 
 
 @config.command()
-@click.argument('key')
-@click.argument('value')
-@click.option('--global', 'global_scope', is_flag=True, help='Set global configuration')
+@click.argument("key")
+@click.argument("value")
+@click.option("--global", "global_scope", is_flag=True, help="Set global configuration")
 @click.pass_context
 def set(ctx, key, value, global_scope):
     """Set a configuration value.
@@ -1030,8 +1138,8 @@ def set(ctx, key, value, global_scope):
         uvs config set install.editable true
         uvs config set --global default.python 3.11
     """
-    output = ctx.obj['output']
-    config_manager = ctx.obj['config']
+    output = ctx.obj["output"]
+    config_manager = ctx.obj["config"]
 
     # Parse value
     parsed_value = parse_config_value(value)
@@ -1043,8 +1151,8 @@ def set(ctx, key, value, global_scope):
 
 
 @config.command()
-@click.argument('key')
-@click.option('--global', 'global_scope', is_flag=True, help='Get global configuration')
+@click.argument("key")
+@click.option("--global", "global_scope", is_flag=True, help="Get global configuration")
 @click.pass_context
 def get(ctx, key, global_scope):
     """Get a configuration value.
@@ -1054,8 +1162,8 @@ def get(ctx, key, global_scope):
         uvs config get default.python
         uvs config get --global default.python
     """
-    output = ctx.obj['output']
-    config_manager = ctx.obj['config']
+    output = ctx.obj["output"]
+    config_manager = ctx.obj["config"]
 
     value = config_manager.get(key)
     if value is not None:
@@ -1065,7 +1173,9 @@ def get(ctx, key, global_scope):
 
 
 @config.command()
-@click.option('--global', 'global_scope', is_flag=True, help='List global configuration')
+@click.option(
+    "--global", "global_scope", is_flag=True, help="List global configuration"
+)
 @click.pass_context
 def list(ctx, global_scope):
     """List all configuration values.
@@ -1075,8 +1185,8 @@ def list(ctx, global_scope):
         uvs config list           # Project config
         uvs config list --global  # Global config
     """
-    output = ctx.obj['output']
-    config_manager = ctx.obj['config']
+    output = ctx.obj["output"]
+    config_manager = ctx.obj["config"]
 
     # Convert config to dict for display
     config_dict = config_manager.config
@@ -1084,8 +1194,13 @@ def list(ctx, global_scope):
     # Display as table
     from rich.table import Table
 
-    table = Table(title=f"Configuration ({'Global' if global_scope else 'Project'})",
-                  box=None, show_edge=False, pad_edge=False, padding=(0, 1))
+    table = Table(
+        title=f"Configuration ({'Global' if global_scope else 'Project'})",
+        box=None,
+        show_edge=False,
+        pad_edge=False,
+        padding=(0, 1),
+    )
     table.add_column("Section", style="cyan")
     table.add_column("Key", style="green")
     table.add_column("Value", style="white")
@@ -1101,7 +1216,9 @@ def list(ctx, global_scope):
 
 
 @config.command()
-@click.option('--global', 'global_scope', is_flag=True, help='Initialize global configuration')
+@click.option(
+    "--global", "global_scope", is_flag=True, help="Initialize global configuration"
+)
 @click.pass_context
 def init(ctx, global_scope):
     """Create a default configuration file.
@@ -1111,8 +1228,8 @@ def init(ctx, global_scope):
         uvs config init           # Project config
         uvs config init --global  # Global config
     """
-    output = ctx.obj['output']
-    config_manager = ctx.obj['config']
+    output = ctx.obj["output"]
+    config_manager = ctx.obj["config"]
 
     config_path = config_manager.create_default_config(
         scope="global" if global_scope else "project"
@@ -1124,8 +1241,8 @@ def init(ctx, global_scope):
 def parse_config_value(value: str) -> Any:
     """Parse configuration value from string."""
     # Try boolean
-    if value.lower() in ('true', 'false'):
-        return value.lower() == 'true'
+    if value.lower() in ("true", "false"):
+        return value.lower() == "true"
 
     # Try integer
     try:
