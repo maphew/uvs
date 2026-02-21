@@ -1,8 +1,3 @@
-# /// script
-# requires-python = ">=3.13"
-# dependencies = []
-# ///
-
 """uvs: transform a single-file PEP723 script into a package and run `uv tool install` on it.
 
 Minimal, self-contained implementation of the core single-script installation behavior.
@@ -66,11 +61,13 @@ def parse_pep723_header(path: Path) -> dict:
         key = key.strip()
         val = val.strip()
         # Check if val is multi-line (starts with [ or { and not closed)
-        if (val.startswith('[') and not val.endswith(']')) or (val.startswith('{') and not val.endswith('}')):
+        if (val.startswith("[") and not val.endswith("]")) or (
+            val.startswith("{") and not val.endswith("}")
+        ):
             # Accumulate lines until closed
             bracket_stack = []
             opening = val[0]
-            closing = ']' if opening == '[' else '}'
+            closing = "]" if opening == "[" else "}"
             bracket_stack.append(opening)
             val_lines = [val]
             i += 1
@@ -84,7 +81,7 @@ def parse_pep723_header(path: Path) -> dict:
                         if bracket_stack:
                             bracket_stack.pop()
                 i += 1
-            val = '\n'.join(val_lines)
+            val = "\n".join(val_lines)
         else:
             i += 1
         try:
@@ -158,9 +155,18 @@ def derive_tool_name(path: Path, explicit_name: str | None = None) -> tuple[str,
     return cli_name, module_name
 
 
-def generate_pyproject(tool_name: str, module_name: str, version: str, description: str, requires_python: str | None, dependencies: list[str], source_path: str, source_hash: str) -> str:
+def generate_pyproject(
+    tool_name: str,
+    module_name: str,
+    version: str,
+    description: str,
+    requires_python: str | None,
+    dependencies: list[str],
+    source_path: str,
+    source_hash: str,
+) -> str:
     deps_repr = ",\n    ".join(f'"{d}"' for d in dependencies) if dependencies else ""
-    requires_line = f'requires-python = "{requires_python}"' if requires_python else ''
+    requires_line = f'requires-python = "{requires_python}"' if requires_python else ""
     # Escape backslashes for TOML compatibility (Windows paths)
     source_path_escaped = source_path.replace("\\", "/")
     proj_section = f"""[project]
@@ -213,7 +219,18 @@ uvs --update {source_path}
 """
 
 
-def write_package(tempdir: Path, tool_name: str, module_name: str, version: str, description: str, requires_python: str | None, dependencies: list[str], source_path: Path, source_hash: str, script_body: str) -> Path:
+def write_package(
+    tempdir: Path,
+    tool_name: str,
+    module_name: str,
+    version: str,
+    description: str,
+    requires_python: str | None,
+    dependencies: list[str],
+    source_path: Path,
+    source_hash: str,
+    script_body: str,
+) -> Path:
     pkg_dir = tempdir / tool_name
     src_pkg_dir = pkg_dir / "src" / module_name
     src_pkg_dir.mkdir(parents=True, exist_ok=True)
@@ -228,13 +245,29 @@ def write_package(tempdir: Path, tool_name: str, module_name: str, version: str,
     init_py.write_text(content, encoding="utf8")
     # pyproject.toml
     pyproject = pkg_dir / "pyproject.toml"
-    pyproject.write_text(generate_pyproject(tool_name, module_name, version, description, requires_python, dependencies, str(source_path), source_hash), encoding="utf8")
+    pyproject.write_text(
+        generate_pyproject(
+            tool_name,
+            module_name,
+            version,
+            description,
+            requires_python,
+            dependencies,
+            str(source_path),
+            source_hash,
+        ),
+        encoding="utf8",
+    )
     # README
-    (pkg_dir / "README.md").write_text(generate_readme(tool_name, str(source_path), description), encoding="utf8")
+    (pkg_dir / "README.md").write_text(
+        generate_readme(tool_name, str(source_path), description), encoding="utf8"
+    )
     return pkg_dir
 
 
-def run_uv_install(pkg_path: Path, editable: bool = False, python: str | None = None) -> int:
+def run_uv_install(
+    pkg_path: Path, editable: bool = False, python: str | None = None
+) -> int:
     """Invoke `uv tool install` on the package directory. Returns subprocess exit code."""
     cmd = ["uv", "tool", "install"]
     if editable:
@@ -279,8 +312,16 @@ def load_registry() -> dict:
         try:
             return json.loads(registry_path.read_text(encoding="utf8"))
         except Exception:
-            return {"version": "1.0", "created_at": datetime.now(timezone.utc).isoformat(), "scripts": {}}
-    return {"version": "1.0", "created_at": datetime.now(timezone.utc).isoformat(), "scripts": {}}
+            return {
+                "version": "1.0",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "scripts": {},
+            }
+    return {
+        "version": "1.0",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "scripts": {},
+    }
 
 
 def save_registry(reg: dict) -> None:
@@ -299,43 +340,35 @@ def run_uv_uninstall(tool_name: str) -> int:
 
 def verify_tool_uninstalled(tool_name: str) -> bool:
     """Verify that a tool is no longer available in the system."""
-    import json
     try:
-        # Check if the tool is still in uv's tool list
         result = subprocess.run(
-            ["uv", "tool", "list", "--format=json"],
+            ["uv", "tool", "list"],
             capture_output=True,
             text=True,
-            check=True
         )
-        
-        # Parse the JSON output
-        tools = json.loads(result.stdout)
-        
-        # Check if our tool is in the list
-        for tool in tools:
-            if tool.get("name") == tool_name:
+        if result.returncode != 0:
+            try:
+                subprocess.run(
+                    [tool_name, "--help"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
                 return False
-        
+            except (
+                subprocess.TimeoutExpired,
+                FileNotFoundError,
+                subprocess.SubprocessError,
+            ):
+                return True
+
+        for line in result.stdout.splitlines():
+            if line.startswith(tool_name + " v") or line.startswith(tool_name + " "):
+                return False
+
         return True
-    except (subprocess.CalledProcessError, json.JSONDecodeError):
-        # If we can't check, try a different approach
-        try:
-            # Try to run the tool directly to see if it exists
-            result = subprocess.run(
-                [tool_name, "--help"],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            # If the command runs successfully, the tool is still installed
-            if result.returncode == 0:
-                return False
-            # If we get "command not found", the tool is uninstalled
-            return True
-        except (subprocess.TimeoutExpired, FileNotFoundError, subprocess.SubprocessError):
-            # If we can't run the tool, assume it's uninstalled
-            return True
+    except Exception:
+        return True
 
 
 def cleanup_registry_entry(tool_name: str) -> bool:
@@ -355,22 +388,49 @@ def backup_registry() -> Path:
     """Create a backup of the registry file."""
     registry_path = get_registry_path()
     config_dir = get_config_dir()
-    
+
     # Create backups directory if it doesn't exist
     backups_dir = config_dir / "backups"
     backups_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Create backup with timestamp
     from datetime import datetime
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_path = backups_dir / f"registry_{timestamp}.json"
-    
+
     # Copy registry to backup location
     if registry_path.exists():
         import shutil
+
         shutil.copy2(registry_path, backup_path)
-    
+
     return backup_path
+
+
+def validate_script_syntax(path: Path) -> tuple[bool, str]:
+    """Validate that a Python script has valid syntax.
+
+    Returns (True, "") if valid, or (False, error_message) if invalid.
+    """
+    try:
+        source = path.read_text(encoding="utf8")
+        ast.parse(source)
+        return True, ""
+    except SyntaxError as e:
+        return False, f"Syntax error in {path.name}: {e}"
+
+
+def validate_script_has_main(source: str) -> bool:
+    """Check if the script source defines a main() function."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "main":
+            return True
+    return False
 
 
 # Core utility functions for uvs CLI
