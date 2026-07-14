@@ -197,7 +197,6 @@ def main():
             # Parse global options
             quiet = "--quiet" in args or "-q" in args
             verbose = "--verbose" in args or "-v" in args
-            debug = "--debug" in args
 
             # Handle global options at start
             while args and args[0] in [
@@ -205,7 +204,6 @@ def main():
                 "-q",
                 "--verbose",
                 "-v",
-                "--debug",
                 "--no-color",
             ]:
                 args = args[1:]
@@ -257,7 +255,7 @@ def main():
                             cli_name, _ = derive_tool_name(script_path, name)
                             if not quiet:
                                 result.stdout = f"Successfully installed {cli_name}"
-                            if verbose or debug:
+                            if verbose:
                                 result.stdout += f"\nParsed script: {script_path}\nGenerated package for {cli_name}"
                     except FileNotFoundError as e:
                         result.returncode = 1
@@ -306,7 +304,7 @@ def main():
                 output_format = "table"
                 i = 1
                 while i < len(args):
-                    if args[i] in ["--no-color", "--quiet", "--verbose", "--debug"]:
+                    if args[i] in ["--no-color", "--quiet", "--verbose"]:
                         i += 1
                     elif args[i] == "--format" and i + 1 < len(args):
                         output_format = args[i + 1]
@@ -959,7 +957,7 @@ def main():
         """
         Test verbose mode provides detailed installation information.
 
-        Expected outcome: Additional debug and progress information displayed.
+        Expected outcome: Additional progress and detail information displayed.
         Code snippet: uvs --verbose install script.py
         """
         result = self.run_uvs_command(["--verbose", "install", str(self.basic_script)])

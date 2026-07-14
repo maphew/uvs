@@ -54,7 +54,6 @@ class OutputLevel(Enum):
     QUIET = 0
     NORMAL = 1
     VERBOSE = 2
-    DEBUG = 3
 
 
 class OutputManager:
@@ -89,14 +88,9 @@ class OutputManager:
             self.error_console.print(f"[yellow]Warning:[/yellow] {message}")
 
     def verbose(self, message: str):
-        """Print verbose message in verbose or debug mode."""
+        """Print a message in verbose mode."""
         if self.level.value >= OutputLevel.VERBOSE.value:
             self.console.print(f"[dim]{message}[/dim]")
-
-    def debug(self, message: str):
-        """Print debug message in debug mode."""
-        if self.level == OutputLevel.DEBUG:
-            self.console.print(f"[dim]Debug: {message}[/dim]")
 
 
 def show_success_message(
@@ -159,6 +153,15 @@ def show_tools_simple(tools: Dict[str, Any], output: OutputManager):
         output.print(f"{name} <- {info['source_path']} (v{info['version']})")
 
 
+def show_tool_simple(tool_name: str, tool_info: Dict[str, Any]):
+    """Display one tool using the stable, undecorated simple format."""
+    click.echo(f"Name: {tool_name}")
+    click.echo(f"Source: {tool_info['source_path']}")
+    click.echo(f"Version: {tool_info['version']}")
+    click.echo(f"Installed: {tool_info['installed_at']}")
+    click.echo(f"Hash: {tool_info['source_hash']}")
+
+
 def install_with_progress(
     script_path: Path, options: Dict[str, Any], output: OutputManager
 ) -> int:
@@ -211,10 +214,11 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
     source_text = read_script_source(script_path)
     script_body = source_text
 
-    # Validate script has a main() function
+    # Validate the script's main entry-point contract.
     if not validate_script_has_main(source_text):
         print(
-            f"Error: Script {script_path.name} does not define a main() function",
+            f"Error: Script {script_path.name} must define a synchronous top-level "
+            "main() function callable without arguments",
             file=sys.stderr,
         )
         return 1
@@ -335,10 +339,9 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
 @click.group(invoke_without_command=True)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--quiet", "-q", is_flag=True, help="Suppress non-error output")
-@click.option("--debug", is_flag=True, help="Enable debug output")
 @click.option("--no-color", is_flag=True, help="Disable colored output")
 @click.pass_context
-def cli(ctx, verbose, quiet, debug, no_color):
+def cli(ctx, verbose, quiet, no_color):
     """Install supported single-file PEP 723 scripts as CLI tools using uv.
 
     \b
@@ -360,16 +363,12 @@ def cli(ctx, verbose, quiet, debug, no_color):
     # Handle conflicting options
     if quiet and verbose:
         raise click.BadParameter("Cannot specify both --quiet and --verbose")
-    if quiet and debug:
-        raise click.BadParameter("Cannot specify both --quiet and --debug")
 
     # Determine output level
     if quiet:
         level = OutputLevel.QUIET
     elif verbose:
         level = OutputLevel.VERBOSE
-    elif debug:
-        level = OutputLevel.DEBUG
     else:
         level = OutputLevel.NORMAL
 
@@ -555,6 +554,7 @@ def show(ctx, tool_name, output_format):
     Examples:
         uvs show my-tool             # Table format (default)
         uvs show --format json my-tool  # JSON format
+        uvs show --format simple my-tool  # Plain-text key/value format
     """
     output = ctx.obj["output"]
 
@@ -566,6 +566,8 @@ def show(ctx, tool_name, output_format):
 
     if output_format == "json":
         show_tools_json({tool_name: tool_info}, output)
+    elif output_format == "simple":
+        show_tool_simple(tool_name, tool_info)
     else:
         # Show detailed information
         from rich.table import Table

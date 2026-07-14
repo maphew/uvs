@@ -68,6 +68,10 @@ def isolated_tool_environment(tmp_path: Path) -> tuple[dict[str, str], Path, Pat
             "UV_PYTHON_INSTALL_DIR": str(python_dir),
             "UV_PYTHON_BIN_DIR": str(python_bin_dir),
             "UV_PYTHON_CACHE_DIR": str(python_cache_dir),
+            # setup-uv selects the matrix interpreter before pytest starts. Give
+            # uv its exact path because the managed-Python directory below is
+            # intentionally redirected to an empty sandbox.
+            "UV_PYTHON": str(Path(sys.executable).resolve()),
             "UV_PYTHON_INSTALL_REGISTRY": "0",
             "UV_CREDENTIALS_DIR": str(credentials_dir),
             "UV_PYTHON_DOWNLOADS": "never",
@@ -137,6 +141,11 @@ def test_real_install_execute_dependency_update_list_show_uninstall(
     ):
         resolved = Path(run_checked(command, env).stdout.strip()).resolve()
         assert resolved == expected.resolve()
+
+    selected_python = Path(
+        run_checked(["uv", "python", "find"], env).stdout.strip()
+    ).resolve()
+    assert selected_python == Path(sys.executable).resolve()
 
     run_checked([*cli, "install", "--name", command_name, script], env)
 

@@ -74,10 +74,13 @@ uvs uninstall hello              # remove the uv tool and uvs registry entry
 ```
 
 An update finds the registry entry by the source file's canonical path. When
-the file changed, it reinstalls the tool and increments the package patch
-version. The original source path must still exist. `list` and `show` describe
-the `uvs` registry, not every tool known to `uv`; use `uv tool list` for the
-latter.
+the file changed, it reinstalls the tool and advances its PEP 440 version to
+the next final release. Release tuples shorter than three components are padded
+before their final component is incremented; epochs are preserved, while pre,
+post, development, and local qualifiers are removed. For example, `1.2rc1`
+updates to `1.2.1`, and `2!1.2.3.post1` updates to `2!1.2.4`. The original
+source path must still exist. `list` and `show` describe the `uvs` registry,
+not every tool known to `uv`; use `uv tool list` for the latter.
 
 `uv` owns the installed tool environment and executable. `uvs` owns a small
 platform-specific `registry.json` that records the source path, source hash,
@@ -85,6 +88,11 @@ version, and install time for tools it installed. Consequently, direct
 `uv tool install` operations do not appear in `uvs list`, and directly removing
 a tool with `uv` can leave a stale `uvs` entry. Prefer `uvs uninstall` for tools
 managed by `uvs`.
+
+`uvs show NAME --format simple` emits five undecorated `Label: value` lines in
+this fixed order: `Name`, `Source`, `Version`, `Installed`, and `Hash`. Unlike
+the default Rich table, the simple format includes the complete source hash and
+is stable for plain-text consumers.
 
 The CLI exposes additional flags on some commands. They are not part of the
 narrow contract documented here; consult `uvs COMMAND --help` for the current

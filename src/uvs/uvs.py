@@ -323,19 +323,26 @@ def run_uv_install(
 
 
 def bump_patch_version(ver: str) -> str:
-    """Bump the patch version of a semantic version string."""
-    parts = ver.split(".")
+    """Return the next final PEP 440 release for an installed version.
+
+    The final release component is incremented after padding short releases to
+    three components. Epochs are preserved, while pre, post, dev, and local
+    qualifiers are intentionally discarded.
+
+    Raises:
+        ValueError: If *ver* is not a valid PEP 440 version.
+    """
     try:
-        if len(parts) >= 3:
-            parts[-1] = str(int(parts[-1]) + 1)
-        elif len(parts) == 2:
-            parts.append("1")
-        else:
-            # unknown form, fallback
-            parts = [ver, "1"]
-        return ".".join(parts)
-    except Exception:
-        return ver
+        version = Version(ver)
+    except InvalidVersion as exc:
+        raise ValueError(f"Invalid package version {ver!r}") from exc
+
+    release = list(version.release)
+    release.extend([0] * (3 - len(release)))
+    release[-1] += 1
+
+    epoch = f"{version.epoch}!" if version.epoch else ""
+    return epoch + ".".join(str(component) for component in release)
 
 
 def get_config_dir() -> Path:
@@ -641,19 +648,83 @@ def extract_description(source: str) -> str:
     return "Auto-generated package"
 
 
+def _function_is_callable_without_arguments(node: ast.FunctionDef) -> bool:
+    arguments = node.args
+    positional_count = len(arguments.posonlyargs) + len(arguments.args)
+    required_positional_count = positional_count - len(arguments.defaults)
+    has_required_keyword_only = any(
+        default is None for default in arguments.kw_defaults
+    )
+    return required_positional_count == 0 and not has_required_keyword_only
+
+
+def _target_binds_main(target: ast.expr) -> bool:
+    if isinstance(target, ast.Name):
+        return target.id == "main"
+    if isinstance(target, (ast.List, ast.Tuple)):
+        return any(_target_binds_main(element) for element in target.elts)
+    if isinstance(target, ast.Starred):
+        return _target_binds_main(target.value)
+    return False
+
+
+def _direct_main_binding(node: ast.stmt) -> bool | None:
+    """Describe a direct module-body binding of ``main``, if present."""
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        if node.name != "main":
+            return None
+        return (
+            _function_is_callable_without_arguments(node)
+            if isinstance(node, ast.FunctionDef)
+            else False
+        )
+
+    if isinstance(node, ast.Assign):
+        return (
+            False
+            if any(_target_binds_main(target) for target in node.targets)
+            else None
+        )
+    if isinstance(node, (ast.AnnAssign, ast.AugAssign)):
+        return False if _target_binds_main(node.target) else None
+    if isinstance(node, ast.Delete):
+        return (
+            False
+            if any(_target_binds_main(target) for target in node.targets)
+            else None
+        )
+    if isinstance(node, ast.Import):
+        for alias in node.names:
+            bound_name = alias.asname or alias.name.split(".", 1)[0]
+            if bound_name == "main":
+                return False
+    if isinstance(node, ast.ImportFrom):
+        for alias in node.names:
+            if alias.name == "*" or (alias.asname or alias.name) == "main":
+                return False
+    if isinstance(node, ast.Expr) and isinstance(node.value, ast.NamedExpr):
+        return False if _target_binds_main(node.value.target) else None
+    return None
+
+
 def validate_script_has_main(source: str) -> bool:
-    """Check if the script source defines a top-level main() function."""
+    """Check the final direct top-level ``main`` binding against the contract.
+
+    This intentionally models source-ordered bindings directly in the module
+    body. Bindings nested in conditional and other control-flow statements are
+    outside this static validation contract.
+    """
     try:
         tree = ast.parse(source)
     except SyntaxError:
         return False
+
+    main_is_valid = False
     for node in tree.body:
-        if (
-            isinstance(node, ast.FunctionDef)
-            and node.name == "main"
-        ):
-            return True
-    return False
+        binding = _direct_main_binding(node)
+        if binding is not None:
+            main_is_valid = binding
+    return main_is_valid
 
 
 # Core utility functions for uvs CLI
