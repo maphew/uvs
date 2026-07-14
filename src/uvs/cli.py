@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-uvs: Install single-file PEP723 scripts as CLI tools using uv.
+uvs: Install supported single-file PEP 723 scripts as CLI tools using uv.
 
 This module provides the Click-based CLI interface for uvs.
 """
@@ -190,7 +190,7 @@ def install_with_progress(
 def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
     """Install script without progress indicators."""
 
-    # Parse PEP723 header
+    # Parse PEP 723 header
     try:
         header = parse_pep723_header(script_path)
     except ValueError as exc:
@@ -339,7 +339,7 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
 @click.option("--no-color", is_flag=True, help="Disable colored output")
 @click.pass_context
 def cli(ctx, verbose, quiet, debug, no_color):
-    """Install single-file PEP723 scripts as CLI tools using uv.
+    """Install supported single-file PEP 723 scripts as CLI tools using uv.
 
     \b
     Examples:
@@ -409,9 +409,9 @@ def install(
     """Install a script as a CLI tool.
 
     \b
-    SCRIPT is the path to the Python script to install. The script should:
-    - Contain PEP723 metadata in a comment block
-    - Have a main() function that will be called when the tool is executed
+    SCRIPT is the path to the Python script to install. It must define a
+    synchronous top-level main() function. It may include PEP 723 metadata for
+    dependencies and a Python version constraint.
 
     \b
     Examples:
@@ -422,7 +422,7 @@ def install(
         uvs install --editable --python 3.11 script.py  # Development install
 
     \b
-    PEP723 Metadata Example:
+    PEP 723 Metadata Example:
         # /// script
         # requires-python = ">=3.8"
         # dependencies = ["requests", "click"]

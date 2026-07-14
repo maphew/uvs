@@ -165,8 +165,15 @@ integration suite. Do not describe mocked subprocess workflows as end-to-end.
 
 ## Architecture Overview
 
-_Add a brief overview of your project architecture_
+`src/uvs/uvs.py` owns PEP 723 parsing, disposable package generation, registry
+persistence, and the `uv` subprocess boundary. `src/uvs/cli.py` exposes the
+Click subcommands and user-facing output. Fast tests isolate external state;
+`tests/integration/` redirects all uv/uvs state and exercises the real lifecycle.
 
 ## Conventions & Patterns
 
-_Add your project-specific conventions here_
+- Preserve supported script source verbatim; installation has snapshot semantics.
+- Keep uv as the owner of tool environments and executables; the uvs registry
+  stores only source mapping and update metadata.
+- Route errors to stderr, keep JSON undecorated, and run real lifecycle tests
+  serially with every user-state directory redirected.

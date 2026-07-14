@@ -28,5 +28,5 @@ uv run pytest -m integration -n 0
 ```
 
 GitHub Actions runs the fast suite first and then the serial integration suite
-on both Windows and Linux after `uv sync --dev --locked` verifies the locked
-development environment.
+on Windows and Linux with Python 3.10, 3.11, 3.12, and 3.13 after
+`uv sync --dev --locked` verifies the locked development environment.

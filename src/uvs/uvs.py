@@ -1,4 +1,4 @@
-"""uvs: transform a single-file PEP723 script into a package and run `uv tool install` on it.
+"""Transform a supported single-file PEP 723 script for ``uv tool install``.
 
 Minimal, self-contained implementation of the core single-script installation behavior.
 """
@@ -254,7 +254,7 @@ This package was generated from:
 
 To update:
 ```
-uvs --update {source_path}
+uvs update {source_path}
 ```
 """
 
