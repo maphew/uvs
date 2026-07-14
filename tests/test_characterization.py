@@ -167,6 +167,12 @@ def test_current_main_detection_accepts_sync_and_async_but_not_nested():
     )
 
 
+def test_shared_fixture_isolates_cli_global_config(tmp_path):
+    assert ConfigManager().config_dirs["global"] == (
+        tmp_path / "home" / ".config" / "uvs"
+    )
+
+
 def test_current_config_creation_writes_an_empty_project_file(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     with patch("pathlib.Path.home", return_value=tmp_path / "home"):
