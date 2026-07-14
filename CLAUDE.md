@@ -57,6 +57,18 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 - If a required sync or push is blocked, stop and report the exact command and error.
 <!-- END BEADS INTEGRATION -->
 
+## Beads Profile Opt-In: Team-Maintainer
+
+This repository explicitly opts into the **team-maintainer** profile described in
+the Agent Context Profiles section above. By default, agents working in this repo:
+
+- Close finished beads and run quality gates at session close
+- Commit completed work with clear messages
+- Sync beads data without asking (`bd dolt pull` / `bd dolt push`)
+- Push code (`git pull --rebase && git push`)
+
+A current "do not commit" or "do not push" instruction from the user or an
+orchestrator still overrides this opt-in.
 
 ## Build & Test
 
