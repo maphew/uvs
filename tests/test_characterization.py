@@ -46,15 +46,16 @@ def test_current_pep723_parser_returns_empty_for_unterminated_block(tmp_path):
     assert parse_pep723_header(script) == {}
 
 
-def test_current_pep723_parser_degrades_malformed_value_to_string(tmp_path):
+def test_pep723_parser_rejects_malformed_toml(tmp_path):
     script = write_script(
         tmp_path / "malformed.py",
         '# /// script\n# dependencies = [not valid]\n# ///\n',
     )
-    assert parse_pep723_header(script) == {"dependencies": "[not valid]"}
+    with pytest.raises(ValueError, match="(?i)PEP 723 TOML"):
+        parse_pep723_header(script)
 
 
-def test_current_source_transformation_removes_metadata_and_main_guard():
+def test_source_compatibility_helper_preserves_source_verbatim():
     source = '''# /// script
 # dependencies = []
 # ///
@@ -66,10 +67,7 @@ if __name__ == "__main__":
     main()
 '''
     transformed = strip_pep723_header_and_main(source)
-    assert "# /// script" not in transformed
-    assert 'if __name__ == "__main__"' not in transformed
-    assert "def main():" in transformed
-    assert transformed.endswith("\n")
+    assert transformed == source
 
 
 @pytest.mark.parametrize(
@@ -78,12 +76,19 @@ if __name__ == "__main__":
         ("hello.py", None, ("hello", "hello")),
         ("hello_world.py", None, ("hello-world", "hello_world")),
         ("ignored.py", "custom_name", ("custom-name", "custom_name")),
-        ("odd name.py", None, ("odd name", "odd name")),
-        ("ignored.py", "a.b", ("a.b", "a.b")),
     ],
 )
 def test_current_filename_and_tool_name_derivation(filename, explicit, expected):
     assert derive_tool_name(Path(filename), explicit) == expected
+
+
+@pytest.mark.parametrize(
+    ("filename", "explicit"),
+    [("odd name.py", None), ("ignored.py", "a.b")],
+)
+def test_invalid_filename_and_tool_names_are_rejected(filename, explicit):
+    with pytest.raises(ValueError, match="Invalid tool name"):
+        derive_tool_name(Path(filename), explicit)
 
 
 def test_custom_name_install_is_stored_under_custom_command(tmp_path):
@@ -110,7 +115,7 @@ def test_custom_name_install_is_stored_under_custom_command(tmp_path):
     assert saved["scripts"]["custom-command"]["source_path"] == str(script.resolve())
 
 
-def test_current_update_lookup_does_not_find_custom_name_by_source(tmp_path, monkeypatch):
+def test_update_lookup_finds_custom_name_by_source(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     script = write_script(tmp_path / "source_name.py", "def main():\n    pass\n")
     registry = {
@@ -124,11 +129,14 @@ def test_current_update_lookup_does_not_find_custom_name_by_source(tmp_path, mon
             }
         },
     }
-    with patch("uvs.cli.load_registry", return_value=registry):
+    with (
+        patch("uvs.cli.load_registry", return_value=registry),
+        patch("uvs.cli.save_registry"),
+        patch("uvs.uvs.run_uv_install", return_value=0),
+    ):
         result = CliRunner().invoke(cli, ["update", str(script)])
     assert result.exit_code == 0
-    assert "No installed tool found for" in result.output
-    assert script.name in result.output
+    assert "Successfully updated custom-command" in result.output
 
 
 @pytest.mark.parametrize(
@@ -156,9 +164,9 @@ def test_current_no_argument_command_behavior(
         assert isinstance(result.exception, exception_type)
 
 
-def test_current_main_detection_accepts_sync_and_async_but_not_nested():
+def test_main_detection_accepts_only_top_level_sync_function():
     assert validate_script_has_main("def main():\n    pass\n") is True
-    assert validate_script_has_main("async def main():\n    pass\n") is True
+    assert validate_script_has_main("async def main():\n    pass\n") is False
     assert (
         validate_script_has_main(
             "def outer():\n    def main():\n        pass\n    return main\n"

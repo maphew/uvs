@@ -395,7 +395,11 @@ def install_with_progress(
 
     # Show verbose info before installing
     if output.level.value >= OutputLevel.VERBOSE.value:
-        header = parse_pep723_header(script_path)
+        try:
+            header = parse_pep723_header(script_path)
+        except ValueError as exc:
+            output.error(f"Error: {exc}")
+            return 1
         output.verbose(f"Dependencies: {header.get('dependencies', [])}")
 
     with Progress(
@@ -414,7 +418,11 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
     """Install script without progress indicators."""
 
     # Parse PEP723 header
-    header = parse_pep723_header(script_path)
+    try:
+        header = parse_pep723_header(script_path)
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        return 1
     requires_python = header.get("requires-python") or header.get("requires_python")
     dependencies = header.get("dependencies") or header.get("dependencies", [])
     if isinstance(dependencies, str):
@@ -428,7 +436,7 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
 
     # Read and process script
     source_text = read_script_source(script_path)
-    script_body = strip_pep723_header_and_main(source_text)
+    script_body = source_text
 
     # Validate script has a main() function
     if not validate_script_has_main(source_text):
@@ -436,7 +444,11 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
         return 1
 
     # Derive names and version
-    cli_name, module_name = derive_tool_name(script_path, options.get("name"))
+    try:
+        cli_name, module_name = derive_tool_name(script_path, options.get("name"))
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        return 1
     version = options.get("version", "0.1.0")
 
     # Check for updates if requested
@@ -459,60 +471,74 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
 
     # Setup temp directory
     tempdir = options.get("tempdir")
+    if options.get("editable") and not tempdir:
+        print("Error: Editable installs require --tempdir to preserve package files")
+        return 1
+    managed_tempdir = None
     if tempdir:
         base_tmp = Path(tempdir)
         base_tmp.mkdir(parents=True, exist_ok=True)
     else:
-        base_tmp = Path(tempfile.mkdtemp(prefix="uvs-"))
+        managed_tempdir = tempfile.TemporaryDirectory(prefix="uvs-")
+        base_tmp = Path(managed_tempdir.name)
 
-    # Generate package
-    pkg_dir = write_package(
-        base_tmp,
-        cli_name,
-        module_name,
-        version,
-        description,
-        requires_python,
-        dependencies,
-        script_path,
-        source_hash,
-        script_body,
-    )
-
-    # Dry run mode
-    if options.get("dry_run"):
-        print(
-            f"Dry run: Would install '{cli_name}' (version {version}) from {script_path}"
+    try:
+        # Generate package
+        pkg_dir = write_package(
+            base_tmp,
+            cli_name,
+            module_name,
+            version,
+            description,
+            requires_python,
+            dependencies,
+            script_path,
+            source_hash,
+            script_body,
         )
-        print(f"  Package would be generated at: {pkg_dir}")
-        if dependencies:
-            print(f"  Dependencies: {', '.join(dependencies)}")
-        else:
-            print("  Dependencies: none")
-        return 0
 
-    # Install with uv
-    result = uvs.run_uv_install(
-        pkg_dir, editable=options.get("editable", False), python=options.get("python")
-    )
+        # Dry run mode
+        if options.get("dry_run"):
+            print(
+                f"Dry run: Would install '{cli_name}' (version {version}) from {script_path}"
+            )
+            print(f"  Package would be generated at: {pkg_dir}")
+            if dependencies:
+                print(f"  Dependencies: {', '.join(dependencies)}")
+            else:
+                print("  Dependencies: none")
+            return 0
 
-    if result == 0:
-        # Update registry
-        try:
-            registry = load_registry()
-            registry.setdefault("scripts", {})
-            registry["scripts"][cli_name] = {
-                "tool_name": cli_name,
-                "source_path": str(script_path.resolve()),
-                "source_hash": source_hash,
-                "installed_at": datetime.now(timezone.utc).isoformat(),
-                "version": version,
-            }
-            save_registry(registry)
-        except Exception as e:
-            print(f"Warning: Failed to update registry: {e}")
+        # Install with uv
+        result = uvs.run_uv_install(
+            pkg_dir,
+            editable=options.get("editable", False),
+            python=options.get("python"),
+        )
 
-    return result
+        if result == 0:
+            # Update registry
+            try:
+                registry = load_registry()
+                registry.setdefault("scripts", {})
+                registry["scripts"][cli_name] = {
+                    "tool_name": cli_name,
+                    "source_path": str(script_path.resolve()),
+                    "source_hash": source_hash,
+                    "installed_at": datetime.now(timezone.utc).isoformat(),
+                    "version": version,
+                }
+                save_registry(registry)
+            except Exception as e:
+                print(f"Warning: Failed to update registry: {e}")
+
+        return result
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        return 1
+    finally:
+        if managed_tempdir is not None:
+            managed_tempdir.cleanup()
 
 
 # Click CLI Definition
@@ -634,7 +660,11 @@ def install(
     if not python:
         if not install_all and script:
             script_path = Path(script)
-            header = parse_pep723_header(script_path)
+            try:
+                header = parse_pep723_header(script_path)
+            except ValueError as exc:
+                output.error(f"Error: {exc}")
+                return 1
             requires_python_in_script = header.get("requires-python") or header.get(
                 "requires_python"
             )
@@ -877,11 +907,19 @@ def update(ctx, script, update_all, python):
             output.error(f"Script not found: {script_path}")
             return 1
 
-        # Find the tool name from registry
+        # Find the installed tool by canonical source path. The command may
+        # have been installed with --name and therefore differ from the stem.
         registry = load_registry()
-        cli_name, _ = derive_tool_name(script_path, None)
-
-        existing = registry.get("scripts", {}).get(cli_name)
+        resolved_source = str(script_path.resolve())
+        matches = [
+            (name, info)
+            for name, info in registry.get("scripts", {}).items()
+            if str(Path(info.get("source_path", "")).resolve()) == resolved_source
+        ]
+        if len(matches) == 1:
+            cli_name, existing = matches[0]
+        else:
+            cli_name, existing = "", None
         if not existing:
             output.error(f"No installed tool found for {script_path}")
             output.print("Use 'uvs install' to install the tool first")

@@ -7,131 +7,141 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import importlib.metadata
 import json
+import keyword
+import re
 import subprocess
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
 import platformdirs
+import tomli_w
+from packaging.requirements import InvalidRequirement, Requirement
+from packaging.specifiers import InvalidSpecifier, SpecifierSet
+from packaging.version import InvalidVersion, Version
+
+from . import __version__
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - exercised on Python 3.10
+    import tomli as tomllib
+
+
+class ScriptMetadataError(ValueError):
+    """Raised when a closed PEP 723 script metadata block is invalid."""
+
+
+_SCRIPT_BLOCK_START = "# /// script"
+_BLOCK_END = "# ///"
+_VALID_TOOL_NAME = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?$")
 
 
 def parse_pep723_header(path: Path) -> dict:
-    """Parse a minimal PEP723-like header in the script.
+    """Parse and validate the script's PEP 723 ``script`` metadata block.
 
-    Looks for lines between '# /// script' and '# ///' and evaluates simple assignments.
-    Returns dict with keys like 'requires-python' and 'dependencies'.
-    Handles multi-line values for lists and dicts.
+    PEP 723 requires unclosed blocks to be ignored and duplicate closed blocks
+    to fail. Closed blocks are TOML documents; malformed content is never
+    silently degraded to a string.
     """
-    header = {}
-    start = None
-    end = None
-    with path.open("r", encoding="utf8") as fh:
-        lines = fh.readlines()
+    lines = read_script_source(path).splitlines()
+    blocks: list[str] = []
+    index = 0
 
-    for i, line in enumerate(lines):
-        if line.strip().startswith("# /// script"):
-            start = i
-            break
-
-    if start is None:
-        return header
-
-    for j in range(start + 1, len(lines)):
-        if lines[j].strip().startswith("# ///"):
-            end = j
-            break
-
-    if end is None:
-        return header
-
-    block = lines[start + 1 : end]
-    i = 0
-    while i < len(block):
-        ln = block[i]
-        stripped = ln.lstrip("# ").rstrip()
-        if not stripped:
-            i += 1
+    while index < len(lines):
+        if lines[index] != _SCRIPT_BLOCK_START:
+            index += 1
             continue
-        # Expect lines like 'requires-python = ">=3.13"' or 'dependencies = []'
-        if "=" not in stripped:
-            i += 1
-            continue
-        key, val = stripped.split("=", 1)
-        key = key.strip()
-        val = val.strip()
-        # Check if val is multi-line (starts with [ or { and not closed)
-        if (val.startswith("[") and not val.endswith("]")) or (
-            val.startswith("{") and not val.endswith("}")
-        ):
-            # Accumulate lines until closed
-            bracket_stack = []
-            opening = val[0]
-            closing = "]" if opening == "[" else "}"
-            bracket_stack.append(opening)
-            val_lines = [val]
-            i += 1
-            while i < len(block) and bracket_stack:
-                next_ln = block[i].lstrip("# ").rstrip()
-                val_lines.append(next_ln)
-                for char in next_ln:
-                    if char == opening:
-                        bracket_stack.append(char)
-                    elif char == closing:
-                        if bracket_stack:
-                            bracket_stack.pop()
-                i += 1
-            val = "\n".join(val_lines)
-        else:
-            i += 1
+
+        start = index
         try:
-            # Use ast.literal_eval for safety for lists/strings
-            header[key] = ast.literal_eval(val)
-        except Exception:
-            header[key] = val.strip('"').strip("'")
+            end = lines.index(_BLOCK_END, start + 1)
+        except ValueError:
+            # PEP 723: unclosed metadata blocks MUST be ignored.
+            break
 
-    return header
+        content: list[str] = []
+        for line_number, line in enumerate(lines[start + 1 : end], start=start + 2):
+            if line == _SCRIPT_BLOCK_START:
+                raise ScriptMetadataError(
+                    f"Invalid PEP 723 metadata in {path}: nested script block"
+                )
+            if line == "#":
+                content.append("")
+            elif line.startswith("# "):
+                content.append(line[2:])
+            else:
+                raise ScriptMetadataError(
+                    f"Invalid PEP 723 metadata in {path}: line {line_number} "
+                    "must start with '# '"
+                )
+        blocks.append("\n".join(content))
+        index = end + 1
+
+    if not blocks:
+        return {}
+    if len(blocks) > 1:
+        raise ScriptMetadataError(
+            f"Invalid PEP 723 metadata in {path}: multiple script blocks"
+        )
+
+    try:
+        metadata = tomllib.loads(blocks[0])
+    except (tomllib.TOMLDecodeError, TypeError) as exc:
+        raise ScriptMetadataError(
+            f"Invalid PEP 723 TOML metadata in {path}: {exc}"
+        ) from exc
+
+    unexpected = set(metadata) - {"dependencies", "requires-python", "tool"}
+    if unexpected:
+        names = ", ".join(sorted(unexpected))
+        raise ScriptMetadataError(
+            f"Invalid PEP 723 metadata in {path}: unsupported field(s): {names}"
+        )
+
+    dependencies = metadata.get("dependencies", [])
+    if not isinstance(dependencies, list) or not all(
+        isinstance(item, str) for item in dependencies
+    ):
+        raise ScriptMetadataError(
+            f"Invalid PEP 723 metadata in {path}: dependencies must be a list of strings"
+        )
+    for dependency in dependencies:
+        try:
+            Requirement(dependency)
+        except InvalidRequirement as exc:
+            raise ScriptMetadataError(
+                f"Invalid PEP 723 dependency in {path}: {dependency!r}"
+            ) from exc
+
+    requires_python = metadata.get("requires-python")
+    if requires_python is not None:
+        if not isinstance(requires_python, str):
+            raise ScriptMetadataError(
+                f"Invalid PEP 723 metadata in {path}: requires-python must be a string"
+            )
+        try:
+            SpecifierSet(requires_python)
+        except InvalidSpecifier as exc:
+            raise ScriptMetadataError(
+                f"Invalid PEP 723 requires-python in {path}: {requires_python!r}"
+            ) from exc
+
+    if "tool" in metadata and not isinstance(metadata["tool"], dict):
+        raise ScriptMetadataError(
+            f"Invalid PEP 723 metadata in {path}: tool must be a table"
+        )
+    return metadata
 
 
 def read_script_source(path: Path) -> str:
-    return path.read_text(encoding="utf8")
+    return path.read_bytes().decode("utf-8")
 
 
 def strip_pep723_header_and_main(source: str) -> str:
-    """Remove the PEP723 header block and the __main__ invocation if present."""
-    lines = source.splitlines()
-    # Remove header between '# /// script' and next '# ///'
-    out: list[str] = []
-    i = 0
-    while i < len(lines):
-        if lines[i].strip().startswith("# /// script"):
-            # skip until next '# ///'
-            i += 1
-            while i < len(lines) and not lines[i].strip().startswith("# ///"):
-                i += 1
-            # skip the closing marker line as well
-            i += 1
-            continue
-        out.append(lines[i])
-        i += 1
-
-    # Remove "if __name__ == '__main__':" block by detecting the line and skipping following indented lines
-    filtered: list[str] = []
-    skip_block = False
-    for idx, ln in enumerate(out):
-        if skip_block:
-            if ln.startswith((" ", "\t")) or ln.strip() == "":
-                # still in block; skip
-                continue
-            else:
-                skip_block = False
-        stripped = ln.strip()
-        if stripped.startswith("if __name__") and "__main__" in stripped:
-            skip_block = True
-            continue
-        filtered.append(ln)
-
-    return "\n".join(filtered) + "\n"
+    """Return source unchanged; retained as a compatibility helper."""
+    return source
 
 
 def compute_hash(path: Path) -> str:
@@ -144,7 +154,7 @@ def compute_hash(path: Path) -> str:
 
 def derive_tool_name(path: Path, explicit_name: str | None = None) -> tuple[str, str]:
     """Return (tool_name_for_cli, package_dir_name)."""
-    if explicit_name:
+    if explicit_name is not None:
         tool = explicit_name
     else:
         tool = path.stem
@@ -152,7 +162,24 @@ def derive_tool_name(path: Path, explicit_name: str | None = None) -> tuple[str,
     cli_name = tool.replace("_", "-")
     # package / module name must be a valid identifier use underscores
     module_name = cli_name.replace("-", "_")
+    if not _VALID_TOOL_NAME.fullmatch(tool):
+        raise ValueError(
+            f"Invalid tool name {tool!r}: use letters, numbers, hyphens, or "
+            "underscores; start and end with a letter or number"
+        )
+    if not module_name.isidentifier() or keyword.iskeyword(module_name):
+        raise ValueError(
+            f"Invalid tool name {tool!r}: {module_name!r} is not a valid Python module name"
+        )
     return cli_name, module_name
+
+
+def get_uvs_version() -> str:
+    """Return the installed generator version, with a source-tree fallback."""
+    try:
+        return importlib.metadata.version("uvs")
+    except importlib.metadata.PackageNotFoundError:
+        return __version__
 
 
 def generate_pyproject(
@@ -165,34 +192,37 @@ def generate_pyproject(
     source_path: str,
     source_hash: str,
 ) -> str:
-    deps_repr = ",\n    ".join(f'"{d}"' for d in dependencies) if dependencies else ""
-    requires_line = f'requires-python = "{requires_python}"' if requires_python else ""
-    # Escape backslashes for TOML compatibility (Windows paths)
-    source_path_escaped = source_path.replace("\\", "/")
-    proj_section = f"""[project]
-name = "{tool_name}"
-version = "{version}"
-description = {json.dumps(description)}
-readme = "README.md"
-{requires_line}
-dependencies = [
-    {deps_repr}
-]
+    try:
+        Version(version)
+    except InvalidVersion as exc:
+        raise ValueError(f"Invalid package version {version!r}") from exc
 
-[project.scripts]
-{tool_name} = "{module_name}:main"
-
-[tool.uvs]
-source_path = "{source_path_escaped}"
-source_hash = "{source_hash}"
-generated_at = "{datetime.now(timezone.utc).isoformat()}"
-generator = "uvs/0.1.0"
-
-[build-system]
-requires = ["uv_build>=0.8.22,<0.9.0"]
-build-backend = "uv_build"
-"""
-    return proj_section
+    project = {
+        "name": tool_name,
+        "version": version,
+        "description": description,
+        "readme": "README.md",
+        "dependencies": dependencies,
+    }
+    if requires_python:
+        project["requires-python"] = requires_python
+    document = {
+        "project": project,
+        "tool": {
+            "uvs": {
+                "source_path": source_path,
+                "source_hash": source_hash,
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "generator": f"uvs/{get_uvs_version()}",
+            }
+        },
+        "build-system": {
+            "requires": ["uv_build>=0.8.22,<0.9.0"],
+            "build-backend": "uv_build",
+        },
+    }
+    document["project"]["scripts"] = {tool_name: f"{module_name}:main"}
+    return tomli_w.dumps(document)
 
 
 def generate_readme(tool_name: str, source_path: str, description: str) -> str:
@@ -205,7 +235,7 @@ def generate_readme(tool_name: str, source_path: str, description: str) -> str:
 This package was generated from:
 - Source: `{source_path}`
 - Generated: {ts}
-- Generator: uvs/0.1.0
+- Generator: uvs/{get_uvs_version()}
 
 ## Usage
 ```
@@ -234,15 +264,10 @@ def write_package(
     pkg_dir = tempdir / tool_name
     src_pkg_dir = pkg_dir / "src" / module_name
     src_pkg_dir.mkdir(parents=True, exist_ok=True)
-    # Write __init__.py
+    # Copy supported source verbatim. Metadata comments and a __main__ guard are
+    # inert when the generated module is imported as a console entry point.
     init_py = src_pkg_dir / "__init__.py"
-    content = f"""# Auto-generated package for {tool_name}
-# Source: {source_path}
-# Generated at: {datetime.now(timezone.utc).isoformat()}
-
-{script_body}
-"""
-    init_py.write_text(content, encoding="utf8")
+    init_py.write_bytes(script_body.encode("utf-8"))
     # pyproject.toml
     pyproject = pkg_dir / "pyproject.toml"
     pyproject.write_text(
@@ -443,7 +468,7 @@ def validate_script_has_main(source: str) -> bool:
         return False
     for node in tree.body:
         if (
-            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            isinstance(node, ast.FunctionDef)
             and node.name == "main"
         ):
             return True

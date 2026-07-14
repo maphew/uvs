@@ -217,6 +217,7 @@ def main():
                     name = None
                     version = "0.1.0"
                     editable = False
+                    tempdir = None
                     dry_run = False
 
                     # Parse args
@@ -231,6 +232,9 @@ def main():
                         elif args[i] == "--editable":
                             editable = True
                             i += 1
+                        elif args[i] == "--tempdir" and i + 1 < len(args):
+                            tempdir = args[i + 1]
+                            i += 2
                         elif args[i] == "--dry-run":
                             dry_run = True
                             i += 1
@@ -241,7 +245,7 @@ def main():
                         "name": name,
                         "version": version,
                         "editable": editable,
-                        "tempdir": None,
+                        "tempdir": tempdir,
                         "python": None,
                         "dry_run": dry_run,
                         "update": False,
@@ -828,18 +832,17 @@ def main():
         assert result.returncode != 0
         assert "does not exist" in result.stderr.lower()
 
-    def test_malformed_script_graceful_handling(self):
+    def test_malformed_script_graceful_handling(self, capsys):
         """
         Test handling of scripts with malformed PEP723 headers.
 
-        Expected outcome: Malformed headers are handled gracefully, script installs with defaults.
+        Expected outcome: Malformed closed metadata fails with a precise error.
         Code snippet: uvs install bad.py
         """
         result = self.run_uvs_command(["install", str(self.bad_script)])
 
-        # Malformed headers are handled gracefully - script installs with defaults
-        assert result.returncode == 0
-        assert "Successfully installed" in result.stdout
+        assert result.returncode != 0
+        assert "Invalid PEP 723 TOML metadata" in capsys.readouterr().out
 
     def test_error_update_nonexistent_script(self):
         """
@@ -937,12 +940,22 @@ def main():
         Test installation in editable mode for development.
 
         Expected outcome: Tool installed with editable flag, suitable for development.
-        Code snippet: uvs install --editable script.py
+        Code snippet: uvs install --editable --tempdir generated script.py
         """
-        result = self.run_uvs_command(["install", "--editable", str(self.basic_script)])
+        generated = self.temp_dir / "editable-packages"
+        result = self.run_uvs_command(
+            [
+                "install",
+                "--editable",
+                "--tempdir",
+                str(generated),
+                str(self.basic_script),
+            ]
+        )
 
         assert result.returncode == 0
         assert "Successfully installed" in result.stdout
+        assert (generated / "hello").is_dir()
 
         # Verify registry shows editable install
         registry = self.get_registry()
