@@ -6,12 +6,17 @@ Minimal, self-contained implementation of the core single-script installation be
 from __future__ import annotations
 
 import ast
+from contextlib import contextmanager
 import hashlib
 import importlib.metadata
 import json
 import keyword
+import os
 import re
 import subprocess
+import sys
+import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -33,9 +38,14 @@ class ScriptMetadataError(ValueError):
     """Raised when a closed PEP 723 script metadata block is invalid."""
 
 
+class UnsupportedRegistryVersionError(ValueError):
+    """Raised when a registry was written by an unknown schema version."""
+
+
 _SCRIPT_BLOCK_START = "# /// script"
 _BLOCK_END = "# ///"
 _VALID_TOOL_NAME = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?$")
+_REGISTRY_VERSION = "1.0"
 
 
 def parse_pep723_header(path: Path) -> dict:
@@ -291,7 +301,10 @@ def write_package(
 
 
 def run_uv_install(
-    pkg_path: Path, editable: bool = False, python: str | None = None
+    pkg_path: Path,
+    editable: bool = False,
+    python: str | None = None,
+    quiet: bool = False,
 ) -> int:
     """Invoke `uv tool install` on the package directory. Returns subprocess exit code."""
     cmd = ["uv", "tool", "install"]
@@ -300,8 +313,13 @@ def run_uv_install(
     cmd.append(str(pkg_path))
     if python:
         cmd.extend(["--python", python])
-    print("Running:", " ".join(cmd))
-    return subprocess.run(cmd).returncode
+    if not quiet:
+        print("Running:", " ".join(cmd))
+        return subprocess.run(cmd).returncode
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0 and result.stderr:
+        print(result.stderr, file=sys.stderr, end="")
+    return result.returncode
 
 
 def bump_patch_version(ver: str) -> str:
@@ -330,37 +348,196 @@ def get_registry_path() -> Path:
     return get_config_dir() / "registry.json"
 
 
-def load_registry() -> dict:
-    """Load the registry file."""
-    registry_path = get_registry_path()
-    if registry_path.exists():
-        try:
-            return json.loads(registry_path.read_text(encoding="utf8"))
-        except Exception:
-            return {
-                "version": "1.0",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "scripts": {},
-            }
+def _new_registry() -> dict:
     return {
-        "version": "1.0",
+        "version": _REGISTRY_VERSION,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "scripts": {},
     }
 
 
+def canonical_source_path(path: str | Path) -> str:
+    """Return a stable path key for registry source comparisons."""
+    if not str(path):
+        raise ValueError("source path cannot be empty")
+    return os.path.normcase(str(Path(path).expanduser().resolve(strict=False)))
+
+
+def _normalize_registry(
+    data: object, *, tolerate_invalid_entries: bool = False
+) -> tuple[dict, list[str]]:
+    """Validate the registry and migrate the pre-versioned schema."""
+    if not isinstance(data, dict):
+        raise ValueError("registry root must be an object")
+    version = data.get("version", _REGISTRY_VERSION)
+    if version != _REGISTRY_VERSION:
+        raise UnsupportedRegistryVersionError(
+            f"unsupported registry version {version!r}"
+        )
+    scripts = data.get("scripts", {})
+    if not isinstance(scripts, dict):
+        raise ValueError("registry 'scripts' must be an object")
+
+    normalized = dict(data)
+    normalized["version"] = _REGISTRY_VERSION
+    normalized.setdefault("created_at", datetime.now(timezone.utc).isoformat())
+    normalized_scripts: dict[str, dict] = {}
+    invalid_entries: list[str] = []
+    for name, entry in scripts.items():
+        try:
+            if not isinstance(name, str) or not isinstance(entry, dict):
+                raise ValueError("registry script entries must be named objects")
+            normalized_entry = dict(entry)
+            normalized_entry["tool_name"] = name
+            source_path = normalized_entry.get("source_path")
+            if not isinstance(source_path, str) or not source_path:
+                raise ValueError(f"registry entry {name!r} has no source path")
+            normalized_entry["source_path"] = canonical_source_path(source_path)
+            for field, default in (
+                ("source_hash", ""),
+                ("installed_at", ""),
+                ("version", "0.1.0"),
+            ):
+                value = normalized_entry.get(field, default)
+                if not isinstance(value, str):
+                    raise ValueError(f"registry entry {name!r} has invalid {field}")
+                normalized_entry[field] = value
+            normalized_scripts[name] = normalized_entry
+        except ValueError:
+            if not tolerate_invalid_entries:
+                raise
+            invalid_entries.append(str(name))
+    normalized["scripts"] = normalized_scripts
+    return normalized, invalid_entries
+
+
+def _archive_invalid_registry(registry_path: Path) -> Path:
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    archive_path = registry_path.with_name(
+        f"{registry_path.stem}.invalid-{timestamp}{registry_path.suffix}"
+    )
+    os.replace(registry_path, archive_path)
+    return archive_path
+
+
+@contextmanager
+def registry_lock(timeout: float = 10.0):
+    """Serialize registry read-modify-write operations across processes."""
+    lock_path = get_registry_path().with_suffix(".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            descriptor = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.close(descriptor)
+            break
+        except FileExistsError:
+            try:
+                stale = time.time() - lock_path.stat().st_mtime > 60
+            except FileNotFoundError:
+                continue
+            if stale:
+                try:
+                    lock_path.unlink()
+                except FileNotFoundError:
+                    pass
+                continue
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"Timed out waiting for registry lock at {lock_path}")
+            time.sleep(0.05)
+    try:
+        yield
+    finally:
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def load_registry() -> dict:
+    """Load and normalize the registry, archiving data that cannot be trusted."""
+    registry_path = get_registry_path()
+    recovered_registry: dict | None = None
+    if not registry_path.exists():
+        return _new_registry()
+    try:
+        contents = registry_path.read_text(encoding="utf8")
+    except OSError as exc:
+        raise RuntimeError(f"Cannot read registry at {registry_path}: {exc}") from exc
+    except UnicodeError as exc:
+        invalid_error: Exception | None = exc
+    else:
+        try:
+            normalized, invalid_entries = _normalize_registry(
+                json.loads(contents), tolerate_invalid_entries=True
+            )
+            if not invalid_entries:
+                return normalized
+            recovered_registry = normalized
+            invalid_error = ValueError(
+                "invalid registry entries: " + ", ".join(invalid_entries)
+            )
+        except UnsupportedRegistryVersionError as exc:
+            raise RuntimeError(
+                f"Cannot use registry at {registry_path}: {exc}"
+            ) from exc
+        except (json.JSONDecodeError, ValueError) as exc:
+            invalid_error = exc
+
+    try:
+        archive_path = _archive_invalid_registry(registry_path)
+    except OSError as archive_exc:
+        raise RuntimeError(
+            f"Cannot read or archive invalid registry at {registry_path}: {archive_exc}"
+        ) from archive_exc
+    print(
+        f"Warning: archived invalid registry at {archive_path}: {invalid_error}",
+        file=sys.stderr,
+    )
+    if recovered_registry is not None:
+        save_registry(recovered_registry)
+        return recovered_registry
+    return _new_registry()
+
+
 def save_registry(reg: dict) -> None:
-    """Save the registry file."""
+    """Validate and atomically replace the registry file."""
+    normalized, invalid_entries = _normalize_registry(reg)
+    if invalid_entries:  # pragma: no cover - strict normalization raises first
+        raise ValueError("registry contains invalid entries")
     registry_path = get_registry_path()
     registry_path.parent.mkdir(parents=True, exist_ok=True)
-    registry_path.write_text(json.dumps(reg, indent=2), encoding="utf8")
+    temp_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf8",
+            dir=registry_path.parent,
+            prefix=f".{registry_path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temp_path = Path(handle.name)
+            json.dump(normalized, handle, indent=2)
+            handle.write("\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_path, registry_path)
+    finally:
+        if temp_path is not None and temp_path.exists():
+            temp_path.unlink()
 
 
-def run_uv_uninstall(tool_name: str) -> int:
+def run_uv_uninstall(tool_name: str, quiet: bool = False) -> int:
     """Invoke `uv tool uninstall` on the specified tool. Returns subprocess exit code."""
     cmd = ["uv", "tool", "uninstall", tool_name]
-    print("Running:", " ".join(cmd))
-    return subprocess.run(cmd).returncode
+    if not quiet:
+        print("Running:", " ".join(cmd))
+        return subprocess.run(cmd).returncode
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0 and result.stderr:
+        print(result.stderr, file=sys.stderr, end="")
+    return result.returncode
 
 
 def verify_tool_uninstalled(tool_name: str) -> bool:
@@ -385,7 +562,10 @@ def verify_tool_uninstalled(tool_name: str) -> bool:
                 FileNotFoundError,
                 subprocess.SubprocessError,
             ):
-                return True
+                # A failed fallback cannot prove absence. Preserve registry
+                # metadata rather than turning an infrastructure error into
+                # destructive stale-entry cleanup.
+                return False
 
         for line in result.stdout.splitlines():
             if line.startswith(tool_name + " v") or line.startswith(tool_name + " "):
@@ -393,18 +573,19 @@ def verify_tool_uninstalled(tool_name: str) -> bool:
 
         return True
     except Exception:
-        return True
+        return False
 
 
 def cleanup_registry_entry(tool_name: str) -> bool:
     """Remove a tool entry from the registry."""
     try:
-        registry = load_registry()
-        if "scripts" in registry and tool_name in registry["scripts"]:
-            del registry["scripts"][tool_name]
-            save_registry(registry)
-            return True
-        return False
+        with registry_lock():
+            registry = load_registry()
+            if "scripts" in registry and tool_name in registry["scripts"]:
+                del registry["scripts"][tool_name]
+                save_registry(registry)
+                return True
+            return False
     except Exception:
         return False
 

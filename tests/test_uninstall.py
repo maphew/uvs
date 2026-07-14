@@ -179,7 +179,7 @@ class TestVerifyToolUninstalled:
 
             result = verify_tool_uninstalled("test-tool")
 
-            assert result is True
+            assert result is False
             assert mock_run.call_count == 2
 
     def test_verification_with_timeout(self):
@@ -194,7 +194,7 @@ class TestVerifyToolUninstalled:
 
             result = verify_tool_uninstalled("test-tool")
 
-            assert result is True
+            assert result is False
             assert mock_run.call_count == 2
 
     @patch("subprocess.run")
@@ -292,7 +292,7 @@ class TestBackupRegistry:
 
         # Verify backup content
         backup_content = json.loads(backup_path.read_text())
-        assert backup_content == sample_registry
+        assert backup_content == load_registry()
 
     def test_backup_nonexistent_registry(self, isolated_temp_dir):
         """Test creating backup when registry doesn't exist."""

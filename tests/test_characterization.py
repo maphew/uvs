@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 from click.testing import CliRunner
 
-from uvs.cli import ConfigManager, cli, install_script_quiet
+from uvs.cli import cli, install_script_quiet
 from uvs.uvs import (
     derive_tool_name,
     parse_pep723_header,
@@ -142,11 +142,11 @@ def test_update_lookup_finds_custom_name_by_source(tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     ("command", "exit_code", "message", "exception_type"),
     [
-        ("install", 0, "Script path is required", None),
-        ("update", 1, "", TypeError),
+        ("install", 1, "Script path is required", SystemExit),
+        ("update", 1, "SCRIPT or --all is required", SystemExit),
         ("list", 0, "No tools installed", None),
         ("show", 2, "Missing argument 'TOOL_NAME'", SystemExit),
-        ("uninstall", 0, "Either TOOL_NAME or --all is required", None),
+        ("uninstall", 1, "Either TOOL_NAME or --all is required", SystemExit),
     ],
 )
 def test_current_no_argument_command_behavior(
@@ -173,34 +173,3 @@ def test_main_detection_accepts_only_top_level_sync_function():
         )
         is False
     )
-
-
-def test_shared_fixture_isolates_cli_global_config(tmp_path):
-    assert ConfigManager().config_dirs["global"] == (
-        tmp_path / "home" / ".config" / "uvs"
-    )
-
-
-def test_current_config_creation_writes_an_empty_project_file(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    with patch("pathlib.Path.home", return_value=tmp_path / "home"):
-        path = ConfigManager().create_default_config("project")
-    assert path == tmp_path / "uvs.toml"
-    assert path.read_text(encoding="utf-8") == ""
-
-
-def test_current_global_config_option_is_accepted_but_ignored(tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    supplied = tmp_path / "supplied.toml"
-    supplied.write_text('[default]\npython = "3.13"\n', encoding="utf-8")
-    (tmp_path / "uvs.toml").write_text(
-        '[default]\npython = "3.11"\n', encoding="utf-8"
-    )
-    with patch("pathlib.Path.home", return_value=tmp_path / "home"):
-        result = CliRunner().invoke(
-            cli,
-            ["--config", str(supplied), "config", "get", "default.python"],
-        )
-    assert result.exit_code == 0
-    assert "default.python = 3.11" in result.output
-    assert "3.13" not in result.output

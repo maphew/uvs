@@ -12,7 +12,6 @@ dependencies = [
     "platformdirs>=4.0.0",
     "packaging>=24.0",
     "rich>=13.0.0",
-    "toml>=0.10.0",
     "tomli>=2.0.0; python_version < '3.11'",
     "tomli-w>=1.2.0",
 ]

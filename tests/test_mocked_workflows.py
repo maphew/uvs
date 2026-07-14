@@ -799,27 +799,6 @@ def main():
         assert "hello.py" in result.stdout
         assert "0.1.0" in result.stdout  # Version
 
-    def test_configuration_management(self):
-        """
-        Test configuration setting and getting.
-
-        Expected outcome: Config values persist and affect behavior.
-        Code snippet: uvs config set default.python 3.11
-        """
-        # Set a config value
-        set_result = self.run_uvs_command(["config", "set", "default.python", "3.11"])
-        assert set_result.returncode == 0
-
-        # Get the config value
-        get_result = self.run_uvs_command(["config", "get", "default.python"])
-        assert get_result.returncode == 0
-        assert "3.11" in get_result.stdout
-
-        # List all config
-        list_result = self.run_uvs_command(["config", "list"])
-        assert list_result.returncode == 0
-        assert "python" in list_result.stdout  # Config table contains python setting
-
     def test_error_missing_script(self):
         """
         Test error handling for missing script files.
@@ -842,7 +821,7 @@ def main():
         result = self.run_uvs_command(["install", str(self.bad_script)])
 
         assert result.returncode != 0
-        assert "Invalid PEP 723 TOML metadata" in capsys.readouterr().out
+        assert "Invalid PEP 723 TOML metadata" in capsys.readouterr().err
 
     def test_error_update_nonexistent_script(self):
         """
@@ -884,27 +863,6 @@ def main():
             import shutil
 
             shutil.rmtree(outside_dir, ignore_errors=True)
-
-    def test_security_config_injection_prevention(self):
-        """
-        Test that configuration values don't allow code execution.
-
-        Expected outcome: Config values treated as strings, no code execution.
-        Code snippet: uvs config set dangerous "__import__('os').system('echo pwned')"
-        """
-        dangerous_value = "__import__('os').system('echo pwned')"
-
-        # Set dangerous config
-        set_result = self.run_uvs_command(
-            ["config", "set", "test.value", dangerous_value]
-        )
-        assert set_result.returncode == 0
-
-        # Get it back - should be the string, not executed
-        get_result = self.run_uvs_command(["config", "get", "test.value"])
-        assert get_result.returncode == 0
-        assert dangerous_value in get_result.stdout
-        # Should not see "pwned" output from executed code
 
     def test_batch_install_partial_failure(self):
         """
