@@ -180,10 +180,11 @@ class TestConfigCommands:
         (isolated_temp_dir / "uvs.toml").write_text(
             '[default]\npython = "3.11"\n', encoding="utf-8"
         )
-        monkeypatch.setenv("HOME", str(home))
-
-        runner = CliRunner()
-        result = runner.invoke(cli, ["config", "get", "--global", "default.python"])
+        with patch("pathlib.Path.home", return_value=home):
+            runner = CliRunner()
+            result = runner.invoke(
+                cli, ["config", "get", "--global", "default.python"]
+            )
 
         assert result.exit_code == 0
         assert "default.python = 3.12" in result.output
@@ -199,10 +200,11 @@ class TestConfigCommands:
         (isolated_temp_dir / "uvs.toml").write_text(
             '[default]\npython = "3.11"\n', encoding="utf-8"
         )
-        monkeypatch.setenv("HOME", str(home))
-
-        runner = CliRunner()
-        result = runner.invoke(cli, ["--no-color", "config", "list", "--global"])
+        with patch("pathlib.Path.home", return_value=home):
+            runner = CliRunner()
+            result = runner.invoke(
+                cli, ["--no-color", "config", "list", "--global"]
+            )
 
         assert result.exit_code == 0
         assert "3.12" in result.output

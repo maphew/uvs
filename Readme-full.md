@@ -301,9 +301,11 @@ uv run pytest
 
 ## Testing
 
-### User-Behavior Focused Test Suite
+### Fast Test Suite
 
-`uvs` includes a comprehensive end-to-end test suite that focuses on user journeys and observable behavior rather than internal implementation details. This approach ensures reliability by testing complete workflows as users would experience them.
+`uvs` currently has unit, CLI/component, and mocked workflow tests. The mocked
+workflows exercise user-facing branches without invoking a real `uv` install or
+executing a generated command.
 
 #### What is Tested
 
@@ -331,7 +333,7 @@ uv run pytest
 uv run pytest --durations=10
 
 # Run specific test categories
-uv run pytest tests/test_e2e.py -v  # End-to-end tests
+uv run pytest -m mocked_workflow -v # Mocked workflow/component tests
 uv run pytest tests/test_cli.py -v  # CLI component tests
 ```
 
@@ -339,12 +341,13 @@ uv run pytest tests/test_cli.py -v  # CLI component tests
 
 The test suite has been optimized for speed and reliability:
 
-- **Fast Execution**: Uses in-memory registries and mocked subprocess calls to avoid slow I/O operations
+- **Fast Execution**: Uses local test registries and mocked subprocess calls to avoid network work
 - **Deterministic Results**: Controlled test environments prevent flaky tests from external dependencies
-- **Comprehensive Coverage**: Tests simulate real user workflows end-to-end while maintaining fast execution
+- **Workflow Coverage**: Tests simulate workflows through mocked component boundaries
 - **Reliable CI/CD**: Tests run consistently across different environments without external dependencies
 
-The current test suite achieves comprehensive coverage of user-facing functionality while maintaining execution times under 30 seconds for the full suite.
+These tests do not prove that a generated package installs or runs with real
+`uv`; see [the test inventory](docs/testing.md).
 
 
 ## Related Projects

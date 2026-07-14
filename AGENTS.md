@@ -148,11 +148,20 @@ Use the locked development environment:
 uv sync --dev
 ```
 
-Run the test suite:
+Run the fast suite (unit, CLI/component, and mocked workflow tests):
 
 ```bash
 uv run pytest
 ```
+
+Run only the mocked workflow suite:
+
+```bash
+uv run pytest -m mocked_workflow
+```
+
+The repository currently has no configured formatter or linter and no real-uv
+integration suite. Do not describe mocked subprocess workflows as end-to-end.
 
 ## Architecture Overview
 
