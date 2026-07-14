@@ -31,6 +31,8 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+addopts = "-m 'not integration'"
 markers = [
+    "integration: isolated tests against the real uv executable (run serially)",
     "mocked_workflow: component workflows with the uv subprocess boundary mocked",
 ]

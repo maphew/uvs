@@ -104,7 +104,7 @@ def show_success_message(
 ):
     """Display success message with Rich panel."""
     success_panel = Panel(
-        f"[bold green]✓ Successfully installed[/bold green] [cyan]{tool_name}[/cyan]\n\n"
+        f"[bold green]Successfully installed[/bold green] [cyan]{tool_name}[/cyan]\n\n"
         f"[dim]Source: {script_path}[/dim]\n"
         f"[dim]Version: {version}[/dim]\n\n"
         f"[yellow]Run '{tool_name}' to use your new tool[/yellow]",
@@ -777,7 +777,7 @@ def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
         if not force and not dry_run:
             output.print(f"\nTools to uninstall ({len(tools)}):")
             for name, info in tools.items():
-                output.print(f"  • {name}  ({info['source_path']})")
+                output.print(f"  - {name}  ({info['source_path']})")
             output.print("")
             if not click.confirm(
                 f"Are you sure you want to uninstall all {len(tools)} tools?"
