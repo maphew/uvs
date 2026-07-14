@@ -1,11 +1,11 @@
-"""
-End-to-End Tests for uvs CLI Tool
+"""Mocked workflow tests for the uvs CLI.
 
-Comprehensive tests simulating real user workflows by executing actual CLI commands
-and verifying system state changes, outputs, registry modifications, and installed tools.
+These tests simulate user workflows through direct function dispatch and verify
+state changes and output. They do not invoke the real Click entry point, perform
+a real ``uv tool install``, or execute an installed command.
 
 These tests cover:
-- Complete CLI command executions with subprocess
+- Direct command-helper executions with a mocked subprocess boundary
 - Registry state verification
 - Output validation
 - Error scenarios and edge cases
@@ -101,8 +101,11 @@ def mock_run_uv_install():
         yield
 
 
-class TestEndToEnd:
-    """End-to-end test suite for uvs CLI workflows."""
+pytestmark = pytest.mark.mocked_workflow
+
+
+class TestMockedWorkflows:
+    """Component-level workflow simulations with the uv boundary mocked."""
 
     @pytest.fixture(autouse=True)
     def setup_test_environment(self, isolated_temp_dir, mock_registry_reset):

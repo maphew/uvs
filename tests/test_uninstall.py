@@ -314,7 +314,7 @@ class TestBackupRegistry:
         save_registry(sample_registry)
 
         # Ensure backups directory doesn't exist
-        config_dir = get_config_dir()
+        config_dir = get_registry_path().parent
         backups_dir = config_dir / "backups"
         if backups_dir.exists():
             shutil.rmtree(backups_dir)
