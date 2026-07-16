@@ -61,3 +61,15 @@ def test_show_simple_has_stable_undecorated_output():
         "Hash: 0123456789abcdef0123456789abcdef\n"
     )
     assert result.exception is None
+
+
+def test_install_all_rejects_explicit_name_before_processing(tmp_path):
+    with patch("uvs.cli.install_script_quiet") as install_script:
+        result = CliRunner().invoke(
+            cli, ["install", "--all", "--name", "shared-name", str(tmp_path)]
+        )
+
+    assert result.exit_code != 0
+    assert result.stdout == ""
+    assert "Cannot use --name with --all" in result.stderr
+    install_script.assert_not_called()

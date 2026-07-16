@@ -226,15 +226,38 @@ def test_update_rejects_ambiguous_canonical_source(tmp_path):
     assert "Multiple installed tools map to" in result.stderr
 
 
-def test_registry_save_failure_makes_install_fail(tmp_path):
+def test_registry_save_failure_rolls_back_installed_tool(tmp_path):
     script = tmp_path / "source.py"
     script.write_text("def main(): pass\n", encoding="utf8")
     with (
         patch("uvs.uvs.run_uv_install", return_value=0),
         patch("uvs.cli.save_registry", side_effect=OSError("disk full")),
+        patch("uvs.cli.run_uv_uninstall", return_value=0) as rollback,
     ):
         result = CliRunner().invoke(cli, ["--no-color", "install", str(script)])
 
     assert result.exit_code != 0
     assert "uv installed the tool but the uvs registry was not updated" in result.stderr
+    assert "disk full" in result.stderr
+    assert "Rollback succeeded: uninstalled 'source'" in result.stderr
     assert "Successfully installed" not in result.stdout
+    rollback.assert_called_once_with("source", quiet=False)
+
+
+def test_registry_save_failure_reports_failed_rollback(tmp_path):
+    script = tmp_path / "source.py"
+    script.write_text("def main(): pass\n", encoding="utf8")
+    with (
+        patch("uvs.uvs.run_uv_install", return_value=0),
+        patch("uvs.cli.save_registry", side_effect=OSError("disk full")),
+        patch("uvs.cli.run_uv_uninstall", return_value=7) as rollback,
+    ):
+        result = CliRunner().invoke(cli, ["--no-color", "install", str(script)])
+
+    assert result.exit_code != 0
+    assert "uv installed the tool but the uvs registry was not updated" in result.stderr
+    assert "disk full" in result.stderr
+    assert "Rollback failed for 'source' (uv exit code 7)" in result.stderr
+    assert "may remain installed but untracked" in result.stderr
+    assert "Successfully installed" not in result.stdout
+    rollback.assert_called_once_with("source", quiet=False)

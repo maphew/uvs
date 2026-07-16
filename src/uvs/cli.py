@@ -322,6 +322,30 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
                     f"updated: {e}",
                     file=sys.stderr,
                 )
+                try:
+                    rollback_result = run_uv_uninstall(
+                        cli_name, quiet=options.get("quiet", False)
+                    )
+                except Exception as rollback_error:
+                    print(
+                        f"Rollback failed for '{cli_name}': {rollback_error}; "
+                        "the tool may remain installed but untracked",
+                        file=sys.stderr,
+                    )
+                else:
+                    if rollback_result == 0:
+                        print(
+                            f"Rollback succeeded: uninstalled '{cli_name}' after "
+                            "the registry failure",
+                            file=sys.stderr,
+                        )
+                    else:
+                        print(
+                            f"Rollback failed for '{cli_name}' (uv exit code "
+                            f"{rollback_result}); the tool may remain installed but "
+                            "untracked",
+                            file=sys.stderr,
+                        )
                 return 1
 
         return result
@@ -428,6 +452,13 @@ def install(
         # ///
     """
     output = ctx.obj["output"]
+
+    if install_all and name is not None:
+        output.error(
+            "Cannot use --name with --all; batch installs derive each tool name "
+            "from its filename"
+        )
+        ctx.exit(1)
 
     if install_all:
         # Handle batch installation
