@@ -1,0 +1,58 @@
+name: Usefulness or design feedback
+description: Tell us whether uvs helps with a real job, falls short, or should work differently.
+title: "Feedback: "
+labels: []
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Candid feedback is welcome, including that the project is not useful for your situation. Concrete experience is more helpful than enthusiasm alone.
+
+  - type: textarea
+    id: job
+    attributes:
+      label: What job were you trying to do?
+      description: Describe the outcome you needed, independently of uvs.
+    validations:
+      required: true
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: How do you handle this today?
+      description: Describe your current command, tool, manual process, or decision not to solve it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: experience
+    attributes:
+      label: What did uvs help with or get in the way of?
+      description: Include what you tried and where the idea, interface, or documentation succeeded or failed.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Relevant environment
+      description: If applicable, include your OS, Python version, uv version, and the shape of the script or workflow.
+    validations:
+      required: false
+
+  - type: textarea
+    id: change
+    attributes:
+      label: What change, if any, would make it useful?
+      description: A proposed solution is optional; the underlying need matters most.
+    validations:
+      required: false
+
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Trade-offs or alternatives
+      description: Note any added complexity, compatibility concern, or alternative design worth considering.
+    validations:
+      required: false

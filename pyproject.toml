@@ -1,10 +1,22 @@
 [project]
 name = "uvs"
 version = "0.1.0"
-description = "uvs transforms single-file self-contained Python scripts with PEP723-style metadata into installable packages using `uv tool install`, making them available as command-line tools."
+description = "Install supported single-file PEP 723 scripts as persistent uv tools."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE.md"]
+keywords = ["uv", "pep-723", "scripts", "cli"]
 authors = [
     { name = "maphew", email = "maphew@gmail.com" }
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 requires-python = ">=3.10"
 dependencies = [
@@ -12,13 +24,17 @@ dependencies = [
     "platformdirs>=4.0.0",
     "packaging>=24.0",
     "rich>=13.0.0",
-    "toml>=0.10.0",
     "tomli>=2.0.0; python_version < '3.11'",
     "tomli-w>=1.2.0",
 ]
 
 [project.scripts]
 uvs = "uvs.cli:cli"
+
+[project.urls]
+Homepage = "https://github.com/maphew/uvs"
+Repository = "https://github.com/maphew/uvs"
+Issues = "https://github.com/maphew/uvs/issues"
 
 [dependency-groups]
 dev = [
@@ -32,6 +48,8 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+addopts = "-m 'not integration'"
 markers = [
+    "integration: isolated tests against the real uv executable (run serially)",
     "mocked_workflow: component workflows with the uv subprocess boundary mocked",
 ]

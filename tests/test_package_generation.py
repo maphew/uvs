@@ -6,7 +6,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-import toml
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python 3.10
+    import tomli as tomllib
 
 from uvs import __version__
 from uvs.cli import install_script_quiet
@@ -108,7 +111,7 @@ def test_generated_pyproject_round_trips_hostile_toml_strings():
         source_path=source_path,
         source_hash="abc123",
     )
-    parsed = toml.loads(rendered)
+    parsed = tomllib.loads(rendered)
 
     assert parsed["project"]["description"] == description
     assert parsed["project"]["dependencies"] == [dependency]
@@ -226,5 +229,5 @@ def test_editable_install_requires_persistent_tempdir(tmp_path, capsys):
         result = install_script_quiet(script, install_options(editable=True))
 
     assert result == 1
-    assert "Editable installs require --tempdir" in capsys.readouterr().out
+    assert "Editable installs require --tempdir" in capsys.readouterr().err
     run_uv_install.assert_not_called()

@@ -1,5 +1,8 @@
 # UV tool install single-file scripts
 
+> Historical design note retained for project provenance; current behavior is
+> documented in the root README and ADR 0001.
+
 How can I do the equivalent of `uv tool install foobar.py` on single file self-contained PEP723 scripts and then have foobar available as a general command?
 
 The naive `uv tool install --script foobar.py` doesn't work. 

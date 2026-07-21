@@ -1,0 +1,86 @@
+name: Bug report
+description: Report reproducible behavior that appears to violate the supported contract.
+title: "Bug: "
+labels:
+  - bug
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem. For suspected vulnerabilities, use [private vulnerability reporting](https://github.com/maphew/uvs/security/advisories/new) instead.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Briefly describe the problem and its impact.
+    validations:
+      required: true
+
+  - type: input
+    id: uvs_version
+    attributes:
+      label: uvs version or commit
+      placeholder: "0.1.0 or commit SHA"
+    validations:
+      required: true
+
+  - type: input
+    id: uv_version
+    attributes:
+      label: uv version
+      placeholder: "Output of: uv --version"
+    validations:
+      required: true
+
+  - type: input
+    id: python_version
+    attributes:
+      label: Python version
+      placeholder: "Output of: python --version"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: operating_system
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - Linux
+        - macOS
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include the smallest safe script and exact commands that reproduce the problem. Remove secrets and personal paths.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and complete error output
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional context
+      description: Add anything else that may help, including how uvs was installed.
+    validations:
+      required: false

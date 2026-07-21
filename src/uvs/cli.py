@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-uvs: Install single-file PEP723 scripts as CLI tools using uv.
+uvs: Install supported single-file PEP 723 scripts as CLI tools using uv.
 
 This module provides the Click-based CLI interface for uvs.
 """
@@ -8,7 +8,7 @@ This module provides the Click-based CLI interface for uvs.
 from __future__ import annotations
 
 import json
-import os
+import sys
 import tempfile
 from datetime import datetime, timezone
 from enum import Enum
@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import click
-import toml
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -26,6 +25,7 @@ from . import uvs
 from .uvs import (
     backup_registry,
     bump_patch_version,
+    canonical_source_path,
     cleanup_registry_entry,
     compute_hash,
     derive_tool_name,
@@ -36,6 +36,7 @@ from .uvs import (
     load_registry,
     parse_pep723_header,
     read_script_source,
+    registry_lock,
     run_uv_install,
     run_uv_uninstall,
     save_registry,
@@ -53,7 +54,6 @@ class OutputLevel(Enum):
     QUIET = 0
     NORMAL = 1
     VERBOSE = 2
-    DEBUG = 3
 
 
 class OutputManager:
@@ -88,228 +88,9 @@ class OutputManager:
             self.error_console.print(f"[yellow]Warning:[/yellow] {message}")
 
     def verbose(self, message: str):
-        """Print verbose message in verbose or debug mode."""
+        """Print a message in verbose mode."""
         if self.level.value >= OutputLevel.VERBOSE.value:
             self.console.print(f"[dim]{message}[/dim]")
-
-    def debug(self, message: str):
-        """Print debug message in debug mode."""
-        if self.level == OutputLevel.DEBUG:
-            self.console.print(f"[dim]Debug: {message}[/dim]")
-
-
-class ConfigManager:
-    """Manages uvs configuration files."""
-
-    def __init__(self):
-        self.config_dirs = self._get_config_dirs()
-        self._scope_configs: Dict[str, Dict] = {}
-        self.config = {
-            "default": {},
-            "install": {},
-            "registry": {},
-            "update": {},
-            "ui": {},
-            "logging": {},
-        }
-        self._load_all_configs()
-
-    def _get_config_dirs(self) -> Dict[str, Path]:
-        """Get configuration directory paths."""
-        home = Path.home()
-        env_config_dir = os.environ.get("UVS_CONFIG_DIR")
-
-        config_dirs: Dict[str, Path] = {
-            "global": home / ".config" / "uvs",
-            "project": Path.cwd(),
-        }
-        if env_config_dir:
-            config_dirs["env"] = Path(env_config_dir)
-        return config_dirs
-
-    def _get_config_files(self) -> Dict[str, Path]:
-        """Get all possible config file paths."""
-        files = {}
-
-        # Global config
-        global_dir = self.config_dirs["global"]
-        files["global"] = global_dir / "config.toml"
-
-        # Project configs (in order of precedence)
-        project_dir = self.config_dirs["project"]
-        files["project"] = project_dir / "uvs.toml"
-        files["project_hidden"] = project_dir / ".uvs.toml"
-
-        # Environment override
-        env_dir = self.config_dirs.get("env")
-        if env_dir and env_dir.exists():
-            files["env"] = env_dir / "config.toml"
-
-        return files
-
-    def _load_all_configs(self):
-        """Load and merge all configuration files."""
-        config_files = self._get_config_files()
-
-        # Load in order of precedence (later overrides earlier)
-        load_order = ["global", "project", "project_hidden", "env"]
-
-        for config_type in load_order:
-            if config_type in config_files:
-                config_path = config_files[config_type]
-                if config_path.exists():
-                    self._load_config_file(config_path, config_type)
-
-    def _load_config_file(self, path: Path, config_type: str):
-        """Load a single configuration file."""
-        try:
-            with path.open("r", encoding="utf-8") as f:
-                data = toml.load(f)
-
-            import copy
-
-            self._scope_configs[config_type] = copy.deepcopy(data)
-
-            # Merge with existing config
-            self._merge_config(data)
-
-        except Exception as e:
-            # Don't fail if config is broken, just warn
-            print(f"Warning: Failed to load config from {path}: {e}")
-
-    def _merge_config(self, data: Dict[str, Any]):
-        """Merge configuration data."""
-        for section, values in data.items():
-            if section in self.config:
-                self.config[section].update(values)
-            else:
-                # Unknown section, add it anyway
-                self.config[section] = values
-
-    def _merged_scope_data(self, scope: str) -> Dict[str, Any]:
-        """Return configuration data for a specific scope."""
-        if scope == "global":
-            return self._scope_configs.get("global", {})
-        if scope == "project":
-            data: Dict[str, Any] = {}
-            project_data = self._scope_configs.get("project", {})
-            hidden_data = self._scope_configs.get("project_hidden", {})
-            for section, values in project_data.items():
-                if isinstance(values, dict):
-                    data.setdefault(section, {}).update(values)
-                else:
-                    data[section] = values
-            for section, values in hidden_data.items():
-                if isinstance(values, dict):
-                    data.setdefault(section, {}).update(values)
-                else:
-                    data[section] = values
-            return data
-        raise ValueError("scope must be 'global' or 'project'")
-
-    def get(self, key: str, default: Any = None, scope: str | None = None) -> Any:
-        """Get a configuration value using dot notation."""
-        keys = key.split(".")
-        value: Any
-        if scope is None:
-            value = self.config
-        else:
-            value = self._merged_scope_data(scope)
-
-        for k in keys:
-            if isinstance(value, dict) and k in value:
-                value = value[k]
-            else:
-                return default
-
-        return value
-
-    def get_scope_config(self, scope: str) -> Dict[str, Any]:
-        """Get all configuration values for a specific scope."""
-        return self._merged_scope_data(scope)
-
-    def set(self, key: str, value: Any, scope: str = "project"):
-        """Set a configuration value."""
-        keys = key.split(".")
-        section = keys[0]
-        config_key = ".".join(keys[1:])
-
-        # Ensure section exists in merged config
-        if section not in self.config:
-            self.config[section] = {}
-
-        section_obj = self.config[section]
-
-        if len(keys) == 1:
-            if isinstance(value, dict):
-                section_obj.update(value)
-            else:
-                raise ValueError(f"Section '{section}' must be a dictionary")
-        else:
-            section_obj[config_key] = value
-
-        # Also update the scope-specific config
-        scope_key = "global" if scope == "global" else "project"
-        if scope_key not in self._scope_configs:
-            self._scope_configs[scope_key] = {}
-        scope_config = self._scope_configs[scope_key]
-        if section not in scope_config:
-            scope_config[section] = {}
-        if len(keys) == 1:
-            if isinstance(value, dict):
-                scope_config[section].update(value)
-        else:
-            scope_config[section][config_key] = value
-
-        # Save to appropriate config file
-        self._save_config(scope)
-
-    def _save_config(self, scope: str):
-        """Save only the scope-specific configuration to file."""
-        if scope == "global":
-            config_path = self.config_dirs["global"] / "config.toml"
-            scope_key = "global"
-        else:
-            config_path = self.config_dirs["project"] / "uvs.toml"
-            scope_key = "project"
-
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-
-        data = self._scope_configs.get(scope_key, {})
-        with config_path.open("w", encoding="utf-8") as f:
-            toml.dump(data, f)
-
-    def create_default_config(self, scope: str = "project"):
-        """Create a default configuration file."""
-        default_config = {
-            "default": {"python": "3.11", "output_format": "table", "color": "auto"},
-            "install": {
-                "default_version": "0.1.0",
-                "editable": False,
-                "dry_run": False,
-            },
-            "registry": {"backup": True, "max_backups": 5},
-            "ui": {
-                "progress_style": "rich",
-                "show_success": True,
-                "confirm_destructive": True,
-            },
-        }
-
-        # Set the default config
-        for section, values in default_config.items():
-            if section not in self.config:
-                self.config[section] = {}
-            self.config[section].update(values)
-
-        # Save to file
-        self._save_config(scope)
-
-        # Return the config file path
-        if scope == "global":
-            return self.config_dirs["global"] / "config.toml"
-        else:
-            return self.config_dirs["project"] / "uvs.toml"
 
 
 def show_success_message(
@@ -317,7 +98,7 @@ def show_success_message(
 ):
     """Display success message with Rich panel."""
     success_panel = Panel(
-        f"[bold green]✓ Successfully installed[/bold green] [cyan]{tool_name}[/cyan]\n\n"
+        f"[bold green]Successfully installed[/bold green] [cyan]{tool_name}[/cyan]\n\n"
         f"[dim]Source: {script_path}[/dim]\n"
         f"[dim]Version: {version}[/dim]\n\n"
         f"[yellow]Run '{tool_name}' to use your new tool[/yellow]",
@@ -361,29 +142,24 @@ def show_tools_table(tools: Dict[str, Any], output: OutputManager):
 
 
 def show_tools_json(tools: Dict[str, Any], output: OutputManager):
-    """Display tools in JSON format."""
-    from rich.syntax import Syntax
-
-    json_data = {
-        "tools": tools,
-        "count": len(tools),
-        "generated_at": datetime.now().isoformat(),
-    }
-
-    json_str = json.dumps(json_data, indent=2)
-    syntax = Syntax(json_str, "json", theme="monokai", line_numbers=True)
-
-    panel = Panel(
-        syntax, title="Installed Tools (JSON)", border_style="blue", padding=(1, 1)
-    )
-
-    output.console.print(panel)
+    """Display stable, machine-readable JSON without Rich decoration."""
+    payload = {"tools": tools, "count": len(tools)}
+    click.echo(json.dumps(payload, indent=2, sort_keys=True))
 
 
 def show_tools_simple(tools: Dict[str, Any], output: OutputManager):
     """Display tools in simple format."""
     for name, info in tools.items():
         output.print(f"{name} <- {info['source_path']} (v{info['version']})")
+
+
+def show_tool_simple(tool_name: str, tool_info: Dict[str, Any]):
+    """Display one tool using the stable, undecorated simple format."""
+    click.echo(f"Name: {tool_name}")
+    click.echo(f"Source: {tool_info['source_path']}")
+    click.echo(f"Version: {tool_info['version']}")
+    click.echo(f"Installed: {tool_info['installed_at']}")
+    click.echo(f"Hash: {tool_info['source_hash']}")
 
 
 def install_with_progress(
@@ -417,11 +193,11 @@ def install_with_progress(
 def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
     """Install script without progress indicators."""
 
-    # Parse PEP723 header
+    # Parse PEP 723 header
     try:
         header = parse_pep723_header(script_path)
     except ValueError as exc:
-        print(f"Error: {exc}")
+        print(f"Error: {exc}", file=sys.stderr)
         return 1
     requires_python = header.get("requires-python") or header.get("requires_python")
     dependencies = header.get("dependencies") or header.get("dependencies", [])
@@ -431,23 +207,27 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
     # Validate script syntax
     syntax_ok, syntax_error = validate_script_syntax(script_path)
     if not syntax_ok:
-        print(f"Error: {syntax_error}")
+        print(f"Error: {syntax_error}", file=sys.stderr)
         return 1
 
     # Read and process script
     source_text = read_script_source(script_path)
     script_body = source_text
 
-    # Validate script has a main() function
+    # Validate the script's main entry-point contract.
     if not validate_script_has_main(source_text):
-        print(f"Error: Script {script_path.name} does not define a main() function")
+        print(
+            f"Error: Script {script_path.name} must define a synchronous top-level "
+            "main() function callable without arguments",
+            file=sys.stderr,
+        )
         return 1
 
     # Derive names and version
     try:
         cli_name, module_name = derive_tool_name(script_path, options.get("name"))
     except ValueError as exc:
-        print(f"Error: {exc}")
+        print(f"Error: {exc}", file=sys.stderr)
         return 1
     version = options.get("version", "0.1.0")
 
@@ -472,7 +252,10 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
     # Setup temp directory
     tempdir = options.get("tempdir")
     if options.get("editable") and not tempdir:
-        print("Error: Editable installs require --tempdir to preserve package files")
+        print(
+            "Error: Editable installs require --tempdir to preserve package files",
+            file=sys.stderr,
+        )
         return 1
     managed_tempdir = None
     if tempdir:
@@ -499,14 +282,16 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
 
         # Dry run mode
         if options.get("dry_run"):
-            print(
-                f"Dry run: Would install '{cli_name}' (version {version}) from {script_path}"
-            )
-            print(f"  Package would be generated at: {pkg_dir}")
-            if dependencies:
-                print(f"  Dependencies: {', '.join(dependencies)}")
-            else:
-                print("  Dependencies: none")
+            if not options.get("quiet"):
+                print(
+                    f"Dry run: Would install '{cli_name}' "
+                    f"(version {version}) from {script_path}"
+                )
+                print(f"  Package would be generated at: {pkg_dir}")
+                if dependencies:
+                    print(f"  Dependencies: {', '.join(dependencies)}")
+                else:
+                    print("  Dependencies: none")
             return 0
 
         # Install with uv
@@ -514,27 +299,58 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
             pkg_dir,
             editable=options.get("editable", False),
             python=options.get("python"),
+            quiet=options.get("quiet", False),
         )
 
         if result == 0:
             # Update registry
             try:
-                registry = load_registry()
-                registry.setdefault("scripts", {})
-                registry["scripts"][cli_name] = {
-                    "tool_name": cli_name,
-                    "source_path": str(script_path.resolve()),
-                    "source_hash": source_hash,
-                    "installed_at": datetime.now(timezone.utc).isoformat(),
-                    "version": version,
-                }
-                save_registry(registry)
+                with registry_lock():
+                    registry = load_registry()
+                    registry.setdefault("scripts", {})
+                    registry["scripts"][cli_name] = {
+                        "tool_name": cli_name,
+                        "source_path": str(script_path.resolve()),
+                        "source_hash": source_hash,
+                        "installed_at": datetime.now(timezone.utc).isoformat(),
+                        "version": version,
+                    }
+                    save_registry(registry)
             except Exception as e:
-                print(f"Warning: Failed to update registry: {e}")
+                print(
+                    "Error: uv installed the tool but the uvs registry was not "
+                    f"updated: {e}",
+                    file=sys.stderr,
+                )
+                try:
+                    rollback_result = run_uv_uninstall(
+                        cli_name, quiet=options.get("quiet", False)
+                    )
+                except Exception as rollback_error:
+                    print(
+                        f"Rollback failed for '{cli_name}': {rollback_error}; "
+                        "the tool may remain installed but untracked",
+                        file=sys.stderr,
+                    )
+                else:
+                    if rollback_result == 0:
+                        print(
+                            f"Rollback succeeded: uninstalled '{cli_name}' after "
+                            "the registry failure",
+                            file=sys.stderr,
+                        )
+                    else:
+                        print(
+                            f"Rollback failed for '{cli_name}' (uv exit code "
+                            f"{rollback_result}); the tool may remain installed but "
+                            "untracked",
+                            file=sys.stderr,
+                        )
+                return 1
 
         return result
     except ValueError as exc:
-        print(f"Error: {exc}")
+        print(f"Error: {exc}", file=sys.stderr)
         return 1
     finally:
         if managed_tempdir is not None:
@@ -547,12 +363,10 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
 @click.group(invoke_without_command=True)
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--quiet", "-q", is_flag=True, help="Suppress non-error output")
-@click.option("--debug", is_flag=True, help="Enable debug output")
 @click.option("--no-color", is_flag=True, help="Disable colored output")
-@click.option("--config", type=click.Path(), help="Path to configuration file")
 @click.pass_context
-def cli(ctx, verbose, quiet, debug, no_color, config):
-    """Install single-file PEP723 scripts as CLI tools using uv.
+def cli(ctx, verbose, quiet, no_color):
+    """Install supported single-file PEP 723 scripts as CLI tools using uv.
 
     \b
     Examples:
@@ -573,26 +387,18 @@ def cli(ctx, verbose, quiet, debug, no_color, config):
     # Handle conflicting options
     if quiet and verbose:
         raise click.BadParameter("Cannot specify both --quiet and --verbose")
-    if quiet and debug:
-        raise click.BadParameter("Cannot specify both --quiet and --debug")
 
     # Determine output level
     if quiet:
         level = OutputLevel.QUIET
     elif verbose:
         level = OutputLevel.VERBOSE
-    elif debug:
-        level = OutputLevel.DEBUG
     else:
         level = OutputLevel.NORMAL
 
     # Create output manager
     output = OutputManager(level=level, no_color=no_color)
     ctx.obj["output"] = output
-
-    # Load configuration
-    config_manager = ConfigManager()
-    ctx.obj["config"] = config_manager
 
     # Show help if no command provided
     if ctx.invoked_subcommand is None:
@@ -626,9 +432,9 @@ def install(
     """Install a script as a CLI tool.
 
     \b
-    SCRIPT is the path to the Python script to install. The script should:
-    - Contain PEP723 metadata in a comment block
-    - Have a main() function that will be called when the tool is executed
+    SCRIPT is the path to the Python script to install. It must define a
+    synchronous top-level main() function. It may include PEP 723 metadata for
+    dependencies and a Python version constraint.
 
     \b
     Examples:
@@ -639,47 +445,27 @@ def install(
         uvs install --editable --python 3.11 script.py  # Development install
 
     \b
-    PEP723 Metadata Example:
+    PEP 723 Metadata Example:
         # /// script
         # requires-python = ">=3.8"
         # dependencies = ["requests", "click"]
         # ///
     """
     output = ctx.obj["output"]
-    config = ctx.obj["config"]
 
-    # Apply configuration defaults
-    if not editable:
-        editable = config.get("install.editable", False)
-    if not dry_run:
-        dry_run = config.get("install.dry_run", False)
-    if not tempdir:
-        tempdir = config.get("default.tempdir")
-
-    # Check if script has requires-python before setting python from config
-    if not python:
-        if not install_all and script:
-            script_path = Path(script)
-            try:
-                header = parse_pep723_header(script_path)
-            except ValueError as exc:
-                output.error(f"Error: {exc}")
-                return 1
-            requires_python_in_script = header.get("requires-python") or header.get(
-                "requires_python"
-            )
-            if not requires_python_in_script:
-                python = config.get("default.python")
-        else:
-            # For batch install, don't set python from config
-            pass
+    if install_all and name is not None:
+        output.error(
+            "Cannot use --name with --all; batch installs derive each tool name "
+            "from its filename"
+        )
+        ctx.exit(1)
 
     if install_all:
         # Handle batch installation
         target_dir = Path(script) if script else Path(".")
         if not target_dir.exists() or not target_dir.is_dir():
             output.error("Target for --all must be an existing directory")
-            return 1
+            ctx.exit(1)
 
         py_files = sorted(
             [p for p in target_dir.iterdir() if p.is_file() and p.suffix == ".py"]
@@ -701,6 +487,7 @@ def install(
                 "python": python,
                 "dry_run": dry_run,
                 "update": False,
+                "quiet": output.level == OutputLevel.QUIET,
             }
 
             result = install_script_quiet(script_path, options_dict)
@@ -712,7 +499,7 @@ def install(
 
         if failure_count > 0:
             output.print(f"Completed with {failure_count} failures")
-            return 1
+            ctx.exit(1)
 
         output.print(f"Successfully installed {success_count} scripts")
         return 0
@@ -721,7 +508,7 @@ def install(
         # Handle single script installation
         if not script:
             output.error("Script path is required")
-            return 1
+            ctx.exit(1)
 
         script_path = Path(script)
         options_dict = {
@@ -732,6 +519,7 @@ def install(
             "python": python,
             "dry_run": dry_run,
             "update": False,
+            "quiet": output.level == OutputLevel.QUIET,
         }
 
         result = install_with_progress(script_path, options_dict, output)
@@ -740,7 +528,8 @@ def install(
             cli_name, _ = derive_tool_name(script_path, name)
             show_success_message(output, cli_name, script_path, version)
 
-        return result
+        if result != 0:
+            ctx.exit(result)
 
 
 @cli.command()
@@ -766,7 +555,7 @@ def list(ctx, output_format):
     registry = load_registry()
     tools = registry.get("scripts", {})
 
-    if not tools:
+    if not tools and output_format != "json":
         if output.level != OutputLevel.QUIET:
             output.print("No tools installed")
         return
@@ -796,6 +585,7 @@ def show(ctx, tool_name, output_format):
     Examples:
         uvs show my-tool             # Table format (default)
         uvs show --format json my-tool  # JSON format
+        uvs show --format simple my-tool  # Plain-text key/value format
     """
     output = ctx.obj["output"]
 
@@ -807,6 +597,8 @@ def show(ctx, tool_name, output_format):
 
     if output_format == "json":
         show_tools_json({tool_name: tool_info}, output)
+    elif output_format == "simple":
+        show_tool_simple(tool_name, tool_info)
     else:
         # Show detailed information
         from rich.table import Table
@@ -848,6 +640,10 @@ def update(ctx, script, update_all, python):
     """
     output = ctx.obj["output"]
 
+    if not script and not update_all:
+        output.error("SCRIPT or --all is required")
+        ctx.exit(1)
+
     if update_all:
         # Update all installed tools
         registry = load_registry()
@@ -864,6 +660,7 @@ def update(ctx, script, update_all, python):
             script_path = Path(tool_info["source_path"])
             if not script_path.exists():
                 output.warning(f"Source file not found for {tool_name}: {script_path}")
+                failure_count += 1
                 continue
 
             output.print(f"Checking {tool_name}...")
@@ -883,6 +680,7 @@ def update(ctx, script, update_all, python):
                 "python": python,
                 "dry_run": False,
                 "update": True,
+                "quiet": output.level == OutputLevel.QUIET,
             }
 
             result = install_script_quiet(script_path, options_dict)
@@ -895,7 +693,7 @@ def update(ctx, script, update_all, python):
 
         if failure_count > 0:
             output.print(f"Updated {success_count} tools, {failure_count} failed")
-            return 1
+            ctx.exit(1)
 
         output.print(f"Successfully updated {success_count} tools")
         return 0
@@ -910,20 +708,23 @@ def update(ctx, script, update_all, python):
         # Find the installed tool by canonical source path. The command may
         # have been installed with --name and therefore differ from the stem.
         registry = load_registry()
-        resolved_source = str(script_path.resolve())
+        resolved_source = canonical_source_path(script_path)
         matches = [
             (name, info)
             for name, info in registry.get("scripts", {}).items()
-            if str(Path(info.get("source_path", "")).resolve()) == resolved_source
+            if canonical_source_path(info["source_path"]) == resolved_source
         ]
         if len(matches) == 1:
             cli_name, existing = matches[0]
+        elif len(matches) > 1:
+            output.error(f"Multiple installed tools map to {script_path}")
+            ctx.exit(1)
         else:
             cli_name, existing = "", None
         if not existing:
             output.error(f"No installed tool found for {script_path}")
-            output.print("Use 'uvs install' to install the tool first")
-            return 1
+            output.error("Use 'uvs install' to install the tool first")
+            ctx.exit(1)
 
         # Check if update is needed
         current_hash = compute_hash(script_path)
@@ -940,6 +741,7 @@ def update(ctx, script, update_all, python):
             "python": python,
             "dry_run": False,
             "update": True,
+            "quiet": output.level == OutputLevel.QUIET,
         }
 
         result = install_with_progress(script_path, options_dict, output)
@@ -950,7 +752,8 @@ def update(ctx, script, update_all, python):
             new_version = bump_patch_version(existing["version"])
             output.verbose(f"New version: {new_version}")
 
-        return result
+        if result != 0:
+            ctx.exit(result)
 
 
 @cli.command()
@@ -984,7 +787,7 @@ def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
     # Check if either tool_name or --all is specified
     if not tool_name and not uninstall_all:
         output.error("Either TOOL_NAME or --all is required")
-        return 1
+        ctx.exit(1)
 
     # Load registry
     registry = load_registry()
@@ -1007,7 +810,7 @@ def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
         if not force and not dry_run:
             output.print(f"\nTools to uninstall ({len(tools)}):")
             for name, info in tools.items():
-                output.print(f"  • {name}  ({info['source_path']})")
+                output.print(f"  - {name}  ({info['source_path']})")
             output.print("")
             if not click.confirm(
                 f"Are you sure you want to uninstall all {len(tools)} tools?"
@@ -1027,7 +830,9 @@ def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
             output.print(f"Uninstalling {name}...")
 
             # Run uv tool uninstall
-            result = run_uv_uninstall(name)
+            result = run_uv_uninstall(
+                name, quiet=output.level == OutputLevel.QUIET
+            )
 
             if result == 0:
                 # Verify it's uninstalled
@@ -1037,12 +842,10 @@ def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
                         output.verbose(f"Removed {name} from registry")
                         success_count += 1
                     else:
-                        output.warning(
+                        output.error(
                             f"Uninstalled {name} but failed to remove from registry"
                         )
-                        success_count += (
-                            1  # Still count as success since tool is uninstalled
-                        )
+                        failure_count += 1
                 else:
                     output.error(f"Failed to verify uninstallation of {name}")
                     failure_count += 1
@@ -1050,11 +853,15 @@ def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
                 # Check if the tool was already removed outside of uvs
                 if verify_tool_uninstalled(name):
                     # Tool is already gone — clean up stale registry entry
-                    cleanup_registry_entry(name)
-                    output.warning(
-                        f"{name} was already uninstalled (cleaned up stale registry entry)"
-                    )
-                    success_count += 1
+                    if cleanup_registry_entry(name):
+                        output.warning(
+                            f"{name} was already uninstalled "
+                            "(cleaned up stale registry entry)"
+                        )
+                        success_count += 1
+                    else:
+                        output.error(f"Failed to remove stale registry entry for {name}")
+                        failure_count += 1
                 else:
                     output.error(f"Failed to uninstall {name}")
                     failure_count += 1
@@ -1064,7 +871,7 @@ def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
             return 0
         elif failure_count > 0:
             output.print(f"Uninstalled {success_count} tools, {failure_count} failed")
-            return 1
+            ctx.exit(1)
         else:
             output.print(f"Successfully uninstalled all {success_count} tools")
             return 0
@@ -1073,7 +880,7 @@ def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
         # Uninstall single tool
         if tool_name not in tools:
             output.error(f"No tool named '{tool_name}' found in registry")
-            return 1
+            ctx.exit(1)
 
         tool_info = tools[tool_name]
 
@@ -1091,7 +898,9 @@ def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
         output.print(f"Uninstalling {tool_name}...")
 
         # Run uv tool uninstall
-        result = run_uv_uninstall(tool_name)
+        result = run_uv_uninstall(
+            tool_name, quiet=output.level == OutputLevel.QUIET
+        )
 
         if result == 0:
             # Verify it's uninstalled
@@ -1102,13 +911,13 @@ def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
                     output.print(f"Successfully uninstalled {tool_name}")
                     return 0
                 else:
-                    output.warning(
+                    output.error(
                         f"Uninstalled {tool_name} but failed to remove from registry"
                     )
-                    return 0  # Still count as success since tool is uninstalled
+                    ctx.exit(1)
             else:
                 output.error(f"Failed to verify uninstallation of {tool_name}")
-                return 1
+                ctx.exit(1)
         else:
             # Check if the tool is already uninstalled from uv but still in registry
             if verify_tool_uninstalled(tool_name):
@@ -1121,154 +930,10 @@ def uninstall(ctx, tool_name, uninstall_all, dry_run, backup, force):
                     return 0
                 else:
                     output.warning(f"Failed to remove {tool_name} from registry")
-                    return 1
+                    ctx.exit(1)
             else:
                 output.error(f"Failed to uninstall {tool_name}")
-                return 1
-
-
-@cli.group()
-def config():
-    """Manage uvs configuration."""
-    pass
-
-
-@config.command()
-@click.argument("key")
-@click.argument("value")
-@click.option("--global", "global_scope", is_flag=True, help="Set global configuration")
-@click.pass_context
-def set(ctx, key, value, global_scope):
-    """Set a configuration value.
-
-    \b
-    Examples:
-        uvs config set default.python 3.11
-        uvs config set install.editable true
-        uvs config set --global default.python 3.11
-    """
-    output = ctx.obj["output"]
-    config_manager = ctx.obj["config"]
-
-    # Parse value
-    parsed_value = parse_config_value(value)
-
-    scope = "global" if global_scope else "project"
-    config_manager.set(key, parsed_value, scope=scope)
-
-    output.print(f"Set {key} = {parsed_value} in {scope} config")
-
-
-@config.command()
-@click.argument("key")
-@click.option("--global", "global_scope", is_flag=True, help="Get global configuration")
-@click.pass_context
-def get(ctx, key, global_scope):
-    """Get a configuration value.
-
-    \b
-    Examples:
-        uvs config get default.python
-        uvs config get --global default.python
-    """
-    output = ctx.obj["output"]
-    config_manager = ctx.obj["config"]
-
-    scope = "global" if global_scope else "project"
-    value = config_manager.get(key, scope=scope)
-    if value is not None:
-        output.print(f"{key} = {value}")
-    else:
-        output.print(f"{key} is not set")
-
-
-@config.command()
-@click.option(
-    "--global", "global_scope", is_flag=True, help="List global configuration"
-)
-@click.pass_context
-def list(ctx, global_scope):
-    """List all configuration values.
-
-    \b
-    Examples:
-        uvs config list           # Project config
-        uvs config list --global  # Global config
-    """
-    output = ctx.obj["output"]
-    config_manager = ctx.obj["config"]
-
-    # Convert config to dict for display
-    scope = "global" if global_scope else "project"
-    config_dict = config_manager.get_scope_config(scope)
-
-    # Display as table
-    from rich.table import Table
-
-    table = Table(
-        title=f"Configuration ({'Global' if global_scope else 'Project'})",
-        box=None,
-        show_edge=False,
-        pad_edge=False,
-        padding=(0, 1),
-    )
-    table.add_column("Section", style="cyan")
-    table.add_column("Key", style="green")
-    table.add_column("Value", style="white")
-
-    for section_name, section_data in config_dict.items():
-        if section_data:
-            for key, value in section_data.items():
-                table.add_row(section_name, key, str(value))
-
-    output.console.print()
-    output.console.print(table)
-    output.console.print()
-
-
-@config.command()
-@click.option(
-    "--global", "global_scope", is_flag=True, help="Initialize global configuration"
-)
-@click.pass_context
-def init(ctx, global_scope):
-    """Create a default configuration file.
-
-    \b
-    Examples:
-        uvs config init           # Project config
-        uvs config init --global  # Global config
-    """
-    output = ctx.obj["output"]
-    config_manager = ctx.obj["config"]
-
-    config_path = config_manager.create_default_config(
-        scope="global" if global_scope else "project"
-    )
-
-    output.print(f"Created default configuration at: {config_path}")
-
-
-def parse_config_value(value: str) -> Any:
-    """Parse configuration value from string."""
-    # Try boolean
-    if value.lower() in ("true", "false"):
-        return value.lower() == "true"
-
-    # Try integer
-    try:
-        return int(value)
-    except ValueError:
-        pass
-
-    # Try float
-    try:
-        return float(value)
-    except ValueError:
-        pass
-
-    # Return as string
-    return value
+                ctx.exit(1)
 
 
 if __name__ == "__main__":

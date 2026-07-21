@@ -1,225 +1,217 @@
-# Quick Start Guide
+# uvs
 
-How to use `uvs` to install single-file Python scripts as command-line tools.
+You have a useful, self-contained Python script under source control. You want
+to run it as a normal command from anywhere, without maintaining a package
+project just to put it on `PATH`.
 
-Known to work on Linux and Windows. Mac should be okay but I don't know.
+`uvs` fills that narrow gap. It turns one supported Python file into a small,
+disposable package and asks [`uv`](https://docs.astral.sh/uv/) to install it as
+a persistent tool. It also remembers the source file so that a later
+`uvs update` can install a new snapshot.
 
-## Prerequisites
+> **Project status:** `uvs` 0.1 is experimental and seeking public validation.
+> It works for the deliberately small contract below, but its usefulness beyond
+> one person's workflow is still an open question. If you try it, please share
+> [whether it fits your work](https://github.com/maphew/uvs/issues/new?template=usefulness-feedback.yml),
+> including why it does not.
 
-- [uv](https://docs.astral.sh/uv/getting-started/installation/) installed and available in your PATH
+## Is uvs a fit?
 
-## Install uvs
+Choose `uvs` when:
 
-Install `uvs` as a command-line tool:
+- your tool is one self-contained, UTF-8 Python file with a synchronous,
+  top-level `main()`;
+- you want an explicit installed snapshot, not a command that changes whenever
+  its source file changes; and
+- you already use `uv` and want it to keep owning the tool environment and
+  executable.
 
-```bash
+Do not choose `uvs` when:
+
+- your code needs sibling modules, data files, or a project directory: package
+  it as a normal Python project instead;
+- you want to run directly from changing source: `uv run path/to/script.py` or
+  a shell alias is a better fit;
+- you need an asynchronous, nested, or method-based entry point; or
+- you want a replacement for `uv tool` or a way to publish packages.
+
+## Try it, then remove the installed state
+
+Requirements are Python 3.10 or newer and `uv` available on `PATH`. Install the
+current 0.1 code from this repository:
+
+```console
 uv tool install https://github.com/maphew/uvs.git
-```
-
-Now you can use `uvs`:
-
-```bash
 uvs --help
 ```
 
-## Your First Installation
+If the shell cannot find `uvs` (or a tool installed later), run
+`uv tool update-shell` and restart the shell. `uv tool dir --bin` prints the
+executable directory if you prefer to add it to `PATH` yourself.
 
-Create a script with [PEP 723][pep723] inline metadata [using uv][uv_script] and install it as a tool:
+Save this as `hello.py`:
 
-```cmd
-> uv init --script uvs-hello.py
-Initialized script at `uvs-hello.py`
+```python
+# /// script
+# requires-python = ">=3.10"
+# dependencies = []
+# ///
 
-> uvs install uvs-hello.py
-Running: uv tool install C:\...\uvs-_asjfho3\uvs-hello
-⠋ Installing...⠋ Resolving dependencies...
-Resolved 1 package in 3ms
-      Built uvs-hello @ file:///C:/.../uvs-_asjfho3/uvs-hello
-Prepared 1 package in 27ms
-Installed 1 package in 16ms
- + uvs-hello==0.1.0 (from file:///C:/.../uvs-_asjfho3/uvs-hello)
-Installed 1 executable: uvs-hello
+def main() -> None:
+    print("Hello from uvs")
 
-╭──────── Installation Complete ───────────╮
-│  ✓ Successfully installed uvs-hello      │
-│                                          │
-│  Source: C:\...\dev\play\uvs-hello.py    │
-│  Version: 0.1.0                          │
-│  Run 'uvs-hello' to use your new tool    │
-╰──────────────────────────────────────────╯
 
-> uvs-hello
-Hello from uvs-hello.py!
+if __name__ == "__main__":
+    main()
 ```
 
-[pep723]:https://peps.python.org/pep-0723/
-[uv_script]:https://docs.astral.sh/uv/guides/scripts/#creating-a-python-script
+Test the source, install it, and run the installed command:
 
-
-
-## Managing Installed Tools
-
-```bash
-# List tools installed with uvs
-# (note: this is different from `uv tool list`) 
-> uvs list
-
-Tool Name  Source Path             Version  Installed At       
-fgmirror   C:\...\dev\fgmirror.py  0.1.0    2025-10-07T03:00:27
-
-> uvs show fgmirror
-
-                  Tool Details: fgmirror
-Property   Value
-Name       fgmirror
-Source     C:\...\dev\fgmirror.py
-Version    0.1.0
-Installed  2025-10-07T03:00:27.171189+00:00
-Hash       5192febbfb2df230...
+```console
+uv run hello.py
+uvs install hello.py
+hello
 ```
 
+Now edit `hello.py` so that its function prints different text:
 
-### Update a Tool
-
-1. Modify your script (e.g., change the print statement in `my-tool.py`)
-2. Reinstall with the `--update` flag:
-
-```bash
-> uvs update my-tool.py
+```python
+def main() -> None:
+    print("Hello from a new snapshot")
 ```
 
-Uvs will detect changes and bump the version automatically.
+Install and run the new snapshot:
 
-### Uninstall a Tool
-
-```bash
-# one tool
-uvs uninstall my-tool
-
-# all uvs tools
-uvs uninstall --all
-
-# Preview without actually removing:
-uvs uninstall --dry-run my-tool
+```console
+uvs update hello.py
+hello
 ```
 
-## Usage parameters
+The first command removes both the installed `hello` tool and its `uvs`
+registry entry; the second removes `uvs` itself. Your source file remains
+untouched:
 
-```
-uvs install --help 
-Usage: uvs install [OPTIONS] [SCRIPT]
-
-  Install a script as a CLI tool.
-
-  SCRIPT is the path to the Python script to install. The script should:
-  - Contain PEP723 metadata in a comment block
-  - Have a main() function that will be called when the tool is executed
-
-  Examples:
-      uvs install my-script.py                    # Install with default name
-      uvs install --name my-tool script.py        # Custom tool name
-      uvs install --all ./scripts/                # Install all scripts in directory
-      uvs install --dry-run script.py             # Preview without installing
-      uvs install --editable --python 3.11 script.py  # Development install
-
-  PEP723 Metadata Example:
-      # /// script
-      # requires-python = ">=3.8"
-      # dependencies = ["requests", "click"]
-      # ///
-
-Options:
-  -n, --name TEXT  Override tool name (default: derived from filename)
-  --version TEXT   Initial package version (default: 0.1.0)
-  -e, --editable   Install in editable mode for development
-  --tempdir PATH   Directory for temporary package generation
-  --python TEXT    Python version to use for installation (e.g., 3.11)
-  --dry-run        Generate package but do not install
-  --all            Install all .py files in directory
-  --help           Show this message and exit.
+```console
+uvs uninstall hello
+uv tool uninstall uvs
 ```
 
+The test matrix covers Windows and Linux. macOS has not been verified.
+
+## Supported script contract
+
+`uvs` supports one UTF-8 Python file at a time. The file must be valid Python
+and define a synchronous `main()` function directly at module scope. An
+`async def main`, a method, or a function nested inside another function is not
+a supported entry point. A conventional `if __name__ == "__main__": main()`
+guard is fine.
+
+PEP 723 metadata is optional. When present, it may contain `dependencies`,
+`requires-python`, and a `tool` table. Dependencies and the Python constraint
+are copied into the generated package. Other top-level metadata fields are
+rejected. The script, including its metadata comments, is copied verbatim into
+the snapshot; `uvs` does not collect sibling modules, data files, or a project
+directory.
+
+The command name comes from the filename, with underscores changed to hyphens.
+Use `uvs install --name another-name hello.py` to choose it explicitly.
+
+## Snapshots, updates, and ownership
+
+The installed command is a snapshot. Editing the original `.py` file does not
+change it. `uvs update` finds the registry entry by the source file's canonical
+path and reinstalls the tool only when the source hash changed. The original
+source path must still exist.
+
+```console
+uvs install hello.py             # create and install the first snapshot
+uvs list                         # list entries tracked by uvs
+uvs show hello                   # show source, version, hash, and install time
+uvs update hello.py              # reinstall if the source hash changed
+uvs uninstall hello              # remove the uv tool and uvs registry entry
 ```
-uvs uninstall --help
-Usage: uvs uninstall [OPTIONS] [TOOL_NAME]
 
-  Uninstall an installed tool.
+Each changed update advances the generated package's PEP 440 version to the
+next final release. Release tuples shorter than three components are padded
+before their final component is incremented; epochs are preserved, while pre,
+post, development, and local qualifiers are removed. For example, `1.2rc1`
+updates to `1.2.1`, and `2!1.2.3.post1` updates to `2!1.2.4`.
 
-  Examples:
-      uvs uninstall my-tool         # Uninstall a specific tool
-      uvs uninstall --all           # Uninstall all tools
-      uvs uninstall --dry-run tool  # Preview what would be uninstalled
+`uv` owns the installed tool environment and executable. `uvs` owns a small,
+platform-specific `registry.json` containing the source path, source hash,
+version, and install time for tools it installed. `uvs list` and `uvs show`
+describe that registry, not every tool known to `uv`; use `uv tool list` for
+the latter. Direct `uv tool install` operations do not appear in `uvs list`,
+and removing a managed tool directly with `uv` can leave a stale `uvs` entry.
+Prefer `uvs uninstall` for tools managed by `uvs`.
 
-Options:
-  --all                   Uninstall all installed tools
-  --dry-run               Show what would be uninstalled without actually
-                          uninstalling
-  --backup / --no-backup  Create a backup of the registry before uninstalling
-  --force                 Force uninstall without confirmation
-  --help                  Show this message and exit.
-```
+`uvs show NAME --format simple` emits five undecorated `Label: value` lines in
+this fixed order: `Name`, `Source`, `Version`, `Installed`, and `Hash`. Unlike
+the default Rich table, the simple format includes the complete source hash and
+is stable for plain-text consumers.
 
-
-## Common Workflows
-
-### Developing a Script
-
-1. Create your script with inline script metadata
-2. Test it directly: `uv run my-script.py`
-3. Install it: `uvs my-script.py`
-4. Test the installed command: `my-script`
-5. Iterate: make changes, then `uvs --update my-script.py`
-
-### Managing a Collection
-
-1. Organize scripts in a directory
-2. Use `--all` to install all at once
-3. Use `--list` to see what's installed
-4. Use `--which` to find sources when needed
-
+The CLI exposes additional flags on some commands. They are not part of the
+narrow contract documented here; consult `uvs COMMAND --help` for the current
+interface.
 
 ## Troubleshooting
 
-### "uv: command not found"
+- **`uv` is not found:** install it using the
+  [official uv instructions](https://docs.astral.sh/uv/getting-started/installation/)
+  and ensure it is on `PATH`.
+- **An installed command is not found:** run `uv tool update-shell`, restart the
+  shell, or use `uv tool dir --bin` to find the directory to add to `PATH`.
+- **The script is rejected:** run `uv run path/to/script.py`, check that it is
+  UTF-8 and syntactically valid, and verify that it has a synchronous,
+  top-level `def main(...):`.
+- **PEP 723 metadata is rejected:** use one closed `# /// script` block with
+  valid TOML and only the supported top-level fields above.
+- **`uvs update` cannot find the tool:** pass the same source file used for
+  installation. If it moved, uninstall by command name and install it again
+  from the new path.
+- **`uvs list` and `uv tool list` disagree:** the former is `uvs` bookkeeping;
+  the latter reports environments owned by `uv`. Reinstall with `uvs` or use
+  `uvs uninstall` to reconcile a tracked tool.
 
-Install uv following the [official installation guide](https://docs.astral.sh/uv/getting-started/installation/).
+## Feedback and project policy
 
+Success here means learning whether this small workflow is useful, and where
+it fails. Please use the focused form to share
+[usefulness feedback](https://github.com/maphew/uvs/issues/new?template=usefulness-feedback.yml)
+or [report a bug](https://github.com/maphew/uvs/issues/new?template=bug-report.yml).
+Contributions are welcome; read [CONTRIBUTING.md](CONTRIBUTING.md) before
+starting. Report security concerns through [SECURITY.md](SECURITY.md), not a
+public issue.
 
-### "uv tool install failed"
+Project records: [changelog](CHANGELOG.md),
+[product contract](docs/adr/0001-uvs-product-contract.md),
+[test inventory](docs/testing.md), and [MIT license](LICENSE.md).
 
-1. Check that your script has a `main()` function
-2. Verify all dependencies are correctly specified in the [PEP 723](https://peps.python.org/pep-0723/) metadata
-3. Verify script executes properly with `uv run myscript.py`
-4. Use `uvs --dry-run` to inspect the generated package
+## Development and tests
 
+Create the locked development environment:
 
-### "Tool not found" during uninstall
+```console
+uv sync --dev --locked
+```
 
-1. Check the tool name with `uvs --list`
-2. Verify the tool was installed with uvs (not directly with uv)
-3. Use `uv tool list` to see all tools installed with uv
+Run the fast suite (the repository configuration excludes integration tests):
 
+```console
+uv run pytest
+```
 
-### "Failed to uninstall tool"
+Run only mocked subprocess workflow tests (these are component tests, not
+end-to-end tests):
 
-1. Check if the tool is still in use by another process
-2. Try running with `--force` flag to skip confirmation
-3. Use `uv tool list` to verify the tool exists in uv's registry
-4. Use `uvs uninstall --dry-run tool-name` to preview what would be removed
+```console
+uv run pytest -m mocked_workflow
+```
 
+Run the isolated lifecycle test against the real `uv` executable, serially:
 
-## Next Steps
+```console
+uv run pytest -m integration -n 0
+```
 
-- Explore the [examples directory](examples/) for more complex scripts
-- **[Readme-full](Readme-full.md)** for extended docs and development notes
-
-
-## Contributors
-
-### v0.1.0
-
-Initial idea, development, quality control, and LLM wrangling: matt wilkie @maphewyk, maphew@gmail.com.
-
-IDE and AI orchestration: Kilo Code
-
-LLM assistants: Claude Sonnet 4.5 (architecture), GLM 4.6 (code backbone), GPT5-Mini (docs), Grok Code Fast 1 (implementation, testing)
+See [`examples/`](examples/) for the minimal supported example.
