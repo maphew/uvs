@@ -78,3 +78,7 @@ bd.db
 
 # Interaction log (append-only, always changing; local-only noise in git status)
 interactions.jsonl
+
+# Added by bd (missing required patterns)
+*.gate.lock*
+dolt-server-config.yaml

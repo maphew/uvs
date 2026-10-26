@@ -17,3 +17,6 @@ wheels/
 *.db
 .beads-credential-key
 .beads/proxieddb/
+
+# Beads root-level gate lock (runtime artifact)
+/.beads.gate.lock*
