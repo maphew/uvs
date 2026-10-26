@@ -38,10 +38,10 @@ Do not choose `uvs` when:
 ## Try it, then remove the installed state
 
 Requirements are Python 3.10 or newer and `uv` available on `PATH`. Install the
-current 0.1 code from this repository:
+[0.1.0 release](https://github.com/maphew/uvs/releases/tag/v0.1.0):
 
 ```console
-uv tool install "git+https://github.com/maphew/uvs.git"
+uv tool install "git+https://github.com/maphew/uvs.git@v0.1.0"
 uvs --help
 ```
 
