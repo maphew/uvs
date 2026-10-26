@@ -30,6 +30,16 @@ def test_package_metadata_marks_the_project_as_experimental():
     assert "Development Status :: 4 - Beta" not in classifiers
 
 
+def test_distribution_name_matches_pyproject_and_is_not_taken():
+    from uvs import DISTRIBUTION_NAME
+
+    metadata = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text("utf-8"))
+
+    assert metadata["project"]["name"] == DISTRIBUTION_NAME
+    # The unrelated PyPI project `uvs` occupies this name.
+    assert DISTRIBUTION_NAME != "uvs"
+
+
 def test_public_feedback_files_are_shipped_in_the_repository():
     expected_paths = [
         "CONTRIBUTING.md",

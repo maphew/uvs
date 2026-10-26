@@ -26,7 +26,7 @@ from packaging.requirements import InvalidRequirement, Requirement
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import InvalidVersion, Version
 
-from . import __version__
+from . import DISTRIBUTION_NAME, __version__
 
 try:
     import tomllib
@@ -187,7 +187,7 @@ def derive_tool_name(path: Path, explicit_name: str | None = None) -> tuple[str,
 def get_uvs_version() -> str:
     """Return the installed generator version, with a source-tree fallback."""
     try:
-        return importlib.metadata.version("uvs")
+        return importlib.metadata.version(DISTRIBUTION_NAME)
     except importlib.metadata.PackageNotFoundError:
         return __version__
 
