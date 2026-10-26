@@ -15,6 +15,15 @@ def test_help_does_not_advertise_removed_debug_option():
     assert "--debug" not in result.output
 
 
+def test_version_option_reports_package_version():
+    from uvs import __version__
+
+    result = CliRunner().invoke(cli, ["--version"])
+
+    assert result.exit_code == 0
+    assert result.output.strip() == f"uvs, version {__version__}"
+
+
 def test_removed_debug_option_is_rejected():
     result = CliRunner().invoke(cli, ["--debug"])
 

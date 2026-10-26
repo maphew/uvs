@@ -46,5 +46,5 @@ def test_changelog_distinguishes_unreleased_work():
     changelog = (PROJECT_ROOT / "CHANGELOG.md").read_text("utf-8")
 
     assert "## Unreleased" in changelog
-    assert "## 0.1.0 - 2026-07-14" in changelog
+    assert "## 0.1.0 - 2026-10-26" in changelog
     assert "not yet published on PyPI" in changelog
