@@ -1,5 +1,5 @@
 [project]
-name = "uvs"
+name = "uvs-cli"
 version = "0.1.0"
 description = "Install supported single-file PEP 723 scripts as persistent uv tools."
 readme = "README.md"
@@ -45,6 +45,12 @@ dev = [
 [build-system]
 requires = ["uv_build>=0.8.22,<0.9.0"]
 build-backend = "uv_build"
+
+# Distribution name is "uvs-cli" but the import package stays "uvs"
+# (uv_build otherwise infers the module name from the distribution name).
+[tool.uv.build-backend]
+module-name = "uvs"
+module-root = "src"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

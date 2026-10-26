@@ -21,7 +21,7 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
-from . import uvs
+from . import __version__, uvs
 from .uvs import (
     backup_registry,
     bump_patch_version,
@@ -364,6 +364,7 @@ def install_script_quiet(script_path: Path, options: Dict[str, Any]) -> int:
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose output")
 @click.option("--quiet", "-q", is_flag=True, help="Suppress non-error output")
 @click.option("--no-color", is_flag=True, help="Disable colored output")
+@click.version_option(version=__version__, prog_name="uvs")
 @click.pass_context
 def cli(ctx, verbose, quiet, no_color):
     """Install supported single-file PEP 723 scripts as CLI tools using uv.

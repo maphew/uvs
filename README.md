@@ -41,9 +41,15 @@ Requirements are Python 3.10 or newer and `uv` available on `PATH`. Install the
 current 0.1 code from this repository:
 
 ```console
-uv tool install https://github.com/maphew/uvs.git
+uv tool install "git+https://github.com/maphew/uvs.git"
 uvs --help
 ```
+
+The distribution is named `uvs-cli`: the PyPI project
+[`uvs`](https://pypi.org/project/uvs/) is an unrelated tool. The installed
+command is still `uvs`. Because `uv` gives each tool its own isolated
+environment, the shared name inside the packages does not interfere with the
+install above. Do not `pip install` both distributions into one environment.
 
 If the shell cannot find `uvs` (or a tool installed later), run
 `uv tool update-shell` and restart the shell. `uv tool dir --bin` prints the
@@ -93,7 +99,7 @@ untouched:
 
 ```console
 uvs uninstall hello
-uv tool uninstall uvs
+uv tool uninstall uvs-cli
 ```
 
 The test matrix covers Windows and Linux. macOS has not been verified.
