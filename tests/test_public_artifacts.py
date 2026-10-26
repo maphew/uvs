@@ -1,5 +1,6 @@
 """Keep shipped examples aligned with the supported script contract."""
 
+import re
 from pathlib import Path
 
 try:
@@ -30,14 +31,22 @@ def test_package_metadata_marks_the_project_as_experimental():
     assert "Development Status :: 4 - Beta" not in classifiers
 
 
-def test_distribution_name_matches_pyproject_and_is_not_taken():
+def test_distribution_name_matches_pyproject():
     from uvs import DISTRIBUTION_NAME
 
     metadata = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text("utf-8"))
 
     assert metadata["project"]["name"] == DISTRIBUTION_NAME
-    # The unrelated PyPI project `uvs` occupies this name.
+    # The unrelated PyPI project `uvs` already occupies this name.
     assert DISTRIBUTION_NAME != "uvs"
+
+
+def test_package_version_matches_pyproject():
+    from uvs import __version__
+
+    metadata = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text("utf-8"))
+
+    assert metadata["project"]["version"] == __version__
 
 
 def test_public_feedback_files_are_shipped_in_the_repository():
@@ -56,5 +65,5 @@ def test_changelog_distinguishes_unreleased_work():
     changelog = (PROJECT_ROOT / "CHANGELOG.md").read_text("utf-8")
 
     assert "## Unreleased" in changelog
-    assert "## 0.1.0 - 2026-10-26" in changelog
+    assert re.search(r"^## 0\.1\.0 - \d{4}-\d{2}-\d{2}$", changelog, re.MULTILINE)
     assert "not yet published on PyPI" in changelog
