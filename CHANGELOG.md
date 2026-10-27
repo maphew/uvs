@@ -32,8 +32,8 @@ is an unrelated tool. The installed command is `uvs`.
 
 ## 0.1.1 - 2026-10-27
 
-- Publish to PyPI as `uvs-cli` through a trusted-publishing GitHub workflow.
-- Document the PyPI install path. No functional changes.
+- Update the README so the PyPI landing page installs with
+  `uv tool install uvs-cli`. Documentation-only patch; no functional changes.
 
 ## 0.1.0 - 2026-10-26
 
@@ -50,3 +50,4 @@ is an unrelated tool. The installed command is `uvs`.
 - Add `uvs --version`.
 - Name the distribution `uvs-cli` to avoid the unrelated PyPI project `uvs`;
   the import package and the installed command remain `uvs`.
+- Publish `uvs-cli` 0.1.0 to PyPI (the first PyPI release).
