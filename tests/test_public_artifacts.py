@@ -56,14 +56,24 @@ def test_public_feedback_files_are_shipped_in_the_repository():
         ".github/ISSUE_TEMPLATE/bug-report.yml",
         ".github/ISSUE_TEMPLATE/usefulness-feedback.yml",
         ".github/ISSUE_TEMPLATE/config.yml",
+        ".github/workflows/publish.yml",
+        "docs/releasing.md",
     ]
 
     assert all((PROJECT_ROOT / path).is_file() for path in expected_paths)
 
 
 def test_changelog_distinguishes_unreleased_work():
+    from uvs import __version__
+
     changelog = (PROJECT_ROOT / "CHANGELOG.md").read_text("utf-8")
 
     assert "## Unreleased" in changelog
-    assert re.search(r"^## 0\.1\.0 - \d{4}-\d{2}-\d{2}$", changelog, re.MULTILINE)
-    assert "not yet published on PyPI" in changelog
+    # Every shipped version needs its own dated section, and the current
+    # package version must not still be sitting under Unreleased.
+    assert re.search(
+        rf"^## {re.escape(__version__)} - \d{{4}}-\d{{2}}-\d{{2}}$",
+        changelog,
+        re.MULTILINE,
+    )
+    assert "pypi.org/project/uvs-cli" in changelog

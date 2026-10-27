@@ -38,18 +38,22 @@ Do not choose `uvs` when:
 ## Try it, then remove the installed state
 
 Requirements are Python 3.10 or newer and `uv` available on `PATH`. Install the
-[0.1.0 release](https://github.com/maphew/uvs/releases/tag/v0.1.0):
+[0.1.0 release](https://pypi.org/project/uvs-cli/0.1.0/) from PyPI:
 
 ```console
-uv tool install "git+https://github.com/maphew/uvs.git@v0.1.0"
+uv tool install uvs-cli
 uvs --help
 ```
 
 The distribution is named `uvs-cli`: the PyPI project
 [`uvs`](https://pypi.org/project/uvs/) is an unrelated tool. The installed
-command is still `uvs`. Because `uv` gives each tool its own isolated
-environment, the shared name inside the packages does not interfere with the
-install above. Do not `pip install` both distributions into one environment.
+command is still `uvs`, and `uv tool uninstall uvs-cli` removes it. Because
+`uv` gives each tool its own isolated environment, the shared name inside the
+packages does not interfere with the install above. Do not `pip install` both
+distributions into one environment.
+
+To track `main` instead of the released version, install
+`"git+https://github.com/maphew/uvs.git"`.
 
 If the shell cannot find `uvs` (or a tool installed later), run
 `uv tool update-shell` and restart the shell. `uv tool dir --bin` prints the

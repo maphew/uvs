@@ -1,6 +1,6 @@
 [project]
 name = "uvs-cli"
-version = "0.1.0"
+version = "0.1.1"
 description = "Install supported single-file PEP 723 scripts as persistent uv tools."
 readme = "README.md"
 license = "MIT"

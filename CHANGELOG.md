@@ -1,10 +1,15 @@
 # Changelog
 
-This project is not yet published on PyPI. The repository can be installed
-directly as described in the README. The intended PyPI distribution name is
-`uvs-cli`, because the PyPI project `uvs` is an unrelated tool.
+This project is published on PyPI as
+[`uvs-cli`](https://pypi.org/project/uvs-cli/), because the PyPI project `uvs`
+is an unrelated tool. The installed command is `uvs`.
 
 ## Unreleased
+
+## 0.1.1 - 2026-10-27
+
+- Publish to PyPI as `uvs-cli` through a trusted-publishing GitHub workflow.
+- Document the PyPI install path. No functional changes.
 
 ## 0.1.0 - 2026-10-26
 
