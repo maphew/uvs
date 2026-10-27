@@ -176,8 +176,10 @@ those.
 `uvs show NAME --format simple` emits five undecorated `Label: value` lines in
 this fixed order: `Name`, `Source`, `Version`, `Installed`, and `Hash`. Unlike
 the default Rich table, the simple format includes the complete source hash and
-is stable for plain-text consumers. Table output uses compact UTC timestamps
-(`2026-07-14 12:34:56 UTC`); `simple` and `json` keep the stored ISO value.
+is stable for plain-text consumers. `uvs show --format json` emits that single
+tool object directly (no `tools`/`count` wrapper). Table output uses compact UTC
+timestamps (`2026-07-14 12:34:56 UTC`); `simple` and `json` keep the stored ISO
+value.
 
 `uvs backup list` shows registry backups, and `uvs backup restore [TARGET]`
 restores one (default: the latest). Uninstall and restore create a backup

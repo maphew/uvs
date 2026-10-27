@@ -23,6 +23,8 @@ is an unrelated tool. The installed command is `uvs`.
   instead of changing it silently.
 - Add `uvs list --check`, a `Status` row in `uvs show`, `uvs doctor`,
   `uvs prune`, and `uvs backup list|restore` with backup retention.
+- `uvs show --format json` now emits the single tool object directly instead
+  of reusing the list wrapper (`{"tools": ..., "count": ...}`).
 - Show the canonical source path and a PATH warning in the install success
   panel; clear reused `--tempdir` packages before regenerating them.
 - Add `-V` as a short form of `--version` and allow the global output flags
