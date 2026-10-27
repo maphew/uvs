@@ -52,3 +52,16 @@ publisher and no longer needs to be recreated.
 so re-running a partly failed publish skips files that already exist. PyPI never
 allows reusing a version, so a broken release needs a new patch version and a
 `CHANGELOG.md` entry rather than a re-tag.
+
+## Known limitation: provenance attestations
+
+As of uv 0.13, `uv publish` does not create PEP 740 provenance attestations
+([astral-sh/uv#15618](https://github.com/astral-sh/uv/issues/15618)), so PyPI
+shows no provenance badge even though the upload used trusted publishing. If
+that badge becomes a requirement, replace the publish step with
+[`pypa/gh-action-pypi-publish`](https://github.com/pypa/gh-action-pypi-publish),
+which builds and uploads the attestations itself. Keep `uv build` either way.
+
+Published metadata is immutable, so a fix to the PyPI description requires a
+new version. Keep the install instructions in `README.md` current before
+tagging, not after.

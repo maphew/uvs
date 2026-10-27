@@ -38,7 +38,7 @@ Do not choose `uvs` when:
 ## Try it, then remove the installed state
 
 Requirements are Python 3.10 or newer and `uv` available on `PATH`. Install the
-[0.1.0 release](https://pypi.org/project/uvs-cli/0.1.0/) from PyPI:
+[current release](https://pypi.org/project/uvs-cli/) from PyPI:
 
 ```console
 uv tool install uvs-cli
