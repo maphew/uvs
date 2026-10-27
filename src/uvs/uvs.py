@@ -13,6 +13,7 @@ import json
 import keyword
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -44,8 +45,15 @@ class UnsupportedRegistryVersionError(ValueError):
 
 _SCRIPT_BLOCK_START = "# /// script"
 _BLOCK_END = "# ///"
+
+
+class RegistryError(RuntimeError):
+    """Raised when the registry cannot be read, written, or understood."""
+
+
 _VALID_TOOL_NAME = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?$")
 _REGISTRY_VERSION = "1.0"
+_MAX_BACKUPS = 20
 
 
 def parse_pep723_header(path: Path) -> dict:
@@ -178,8 +186,14 @@ def derive_tool_name(path: Path, explicit_name: str | None = None) -> tuple[str,
             "underscores; start and end with a letter or number"
         )
     if not module_name.isidentifier() or keyword.iskeyword(module_name):
+        reason = (
+            "is a Python keyword"
+            if keyword.iskeyword(module_name)
+            else "is not a valid Python identifier"
+        )
         raise ValueError(
-            f"Invalid tool name {tool!r}: {module_name!r} is not a valid Python module name"
+            f"Invalid tool name {tool!r}: {module_name!r} {reason} and cannot be "
+            "used as the generated package module name"
         )
     return cli_name, module_name
 
@@ -272,6 +286,9 @@ def write_package(
     script_body: str,
 ) -> Path:
     pkg_dir = tempdir / tool_name
+    # Reused --tempdir locations must not leak modules from an earlier package.
+    if pkg_dir.exists():
+        shutil.rmtree(pkg_dir)
     src_pkg_dir = pkg_dir / "src" / module_name
     src_pkg_dir.mkdir(parents=True, exist_ok=True)
     # Copy supported source verbatim. Metadata comments and a __main__ guard are
@@ -314,7 +331,7 @@ def run_uv_install(
     if python:
         cmd.extend(["--python", python])
     if not quiet:
-        print("Running:", " ".join(cmd))
+        sys.stdout.flush()
         return subprocess.run(cmd).returncode
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0 and result.stderr:
@@ -409,6 +426,21 @@ def _normalize_registry(
                 if not isinstance(value, str):
                     raise ValueError(f"registry entry {name!r} has invalid {field}")
                 normalized_entry[field] = value
+            editable = normalized_entry.get("editable", False)
+            if not isinstance(editable, bool):
+                raise ValueError(f"registry entry {name!r} has invalid editable")
+            normalized_entry["editable"] = editable
+            for field in ("tempdir", "python", "requires_python"):
+                value = normalized_entry.get(field)
+                if value is not None and not isinstance(value, str):
+                    raise ValueError(f"registry entry {name!r} has invalid {field}")
+                normalized_entry[field] = value
+            dependencies = normalized_entry.get("dependencies", [])
+            if not isinstance(dependencies, list) or not all(
+                isinstance(item, str) for item in dependencies
+            ):
+                raise ValueError(f"registry entry {name!r} has invalid dependencies")
+            normalized_entry["dependencies"] = list(dependencies)
             normalized_scripts[name] = normalized_entry
         except ValueError:
             if not tolerate_invalid_entries:
@@ -470,7 +502,7 @@ def load_registry() -> dict:
     try:
         contents = registry_path.read_text(encoding="utf8")
     except OSError as exc:
-        raise RuntimeError(f"Cannot read registry at {registry_path}: {exc}") from exc
+        raise RegistryError(f"Cannot read registry at {registry_path}: {exc}") from exc
     except UnicodeError as exc:
         invalid_error: Exception | None = exc
     else:
@@ -485,7 +517,7 @@ def load_registry() -> dict:
                 "invalid registry entries: " + ", ".join(invalid_entries)
             )
         except UnsupportedRegistryVersionError as exc:
-            raise RuntimeError(
+            raise RegistryError(
                 f"Cannot use registry at {registry_path}: {exc}"
             ) from exc
         except (json.JSONDecodeError, ValueError) as exc:
@@ -494,7 +526,7 @@ def load_registry() -> dict:
     try:
         archive_path = _archive_invalid_registry(registry_path)
     except OSError as archive_exc:
-        raise RuntimeError(
+        raise RegistryError(
             f"Cannot read or archive invalid registry at {registry_path}: {archive_exc}"
         ) from archive_exc
     print(
@@ -539,7 +571,7 @@ def run_uv_uninstall(tool_name: str, quiet: bool = False) -> int:
     """Invoke `uv tool uninstall` on the specified tool. Returns subprocess exit code."""
     cmd = ["uv", "tool", "uninstall", tool_name]
     if not quiet:
-        print("Running:", " ".join(cmd))
+        sys.stdout.flush()
         return subprocess.run(cmd).returncode
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0 and result.stderr:
@@ -583,6 +615,27 @@ def verify_tool_uninstalled(tool_name: str) -> bool:
         return False
 
 
+def uv_tool_names() -> set[str] | None:
+    """Return the tool names uv reports, or None when uv cannot be queried."""
+    try:
+        result = subprocess.run(
+            ["uv", "tool", "list"],
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    names: set[str] = set()
+    for line in result.stdout.splitlines():
+        stripped_line = line.strip()
+        if not stripped_line or stripped_line.startswith("-"):
+            continue
+        names.add(stripped_line.split(" ", 1)[0])
+    return names
+
+
 def cleanup_registry_entry(tool_name: str) -> bool:
     """Remove a tool entry from the registry."""
     try:
@@ -597,28 +650,62 @@ def cleanup_registry_entry(tool_name: str) -> bool:
         return False
 
 
+def get_backups_dir() -> Path:
+    """Return the directory that stores registry backups."""
+    return get_config_dir() / "backups"
+
+
+def list_backups() -> list[Path]:
+    """Return registry backups newest first."""
+    backups_dir = get_backups_dir()
+    if not backups_dir.is_dir():
+        return []
+    return sorted(
+        (path for path in backups_dir.glob("registry_*.json") if path.is_file()),
+        key=lambda path: path.name,
+        reverse=True,
+    )
+
+
+def _prune_backups(keep: int = _MAX_BACKUPS) -> None:
+    for stale in list_backups()[keep:]:
+        try:
+            stale.unlink()
+        except OSError:
+            pass
+
+
 def backup_registry() -> Path:
-    """Create a backup of the registry file."""
+    """Create a backup of the registry file and apply retention."""
     registry_path = get_registry_path()
-    config_dir = get_config_dir()
-
-    # Create backups directory if it doesn't exist
-    backups_dir = config_dir / "backups"
+    backups_dir = get_backups_dir()
     backups_dir.mkdir(parents=True, exist_ok=True)
-
-    # Create backup with timestamp
-    from datetime import datetime
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_path = backups_dir / f"registry_{timestamp}.json"
 
-    # Copy registry to backup location
     if registry_path.exists():
-        import shutil
-
         shutil.copy2(registry_path, backup_path)
 
+    _prune_backups()
     return backup_path
+
+
+def restore_registry_backup(backup_path: Path) -> None:
+    """Restore the registry from a validated backup file."""
+    try:
+        contents = backup_path.read_text(encoding="utf8")
+    except OSError as exc:
+        raise RegistryError(f"Cannot read backup {backup_path}: {exc}") from exc
+    try:
+        data = json.loads(contents)
+    except json.JSONDecodeError as exc:
+        raise RegistryError(f"Backup {backup_path} is not valid JSON: {exc}") from exc
+    try:
+        normalized, _ = _normalize_registry(data)
+    except (UnsupportedRegistryVersionError, ValueError) as exc:
+        raise RegistryError(f"Backup {backup_path} is not usable: {exc}") from exc
+    save_registry(normalized)
 
 
 def validate_script_syntax(path: Path) -> tuple[bool, str]:

@@ -142,11 +142,11 @@ def test_update_lookup_finds_custom_name_by_source(tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     ("command", "exit_code", "message", "exception_type"),
     [
-        ("install", 1, "Script path is required", SystemExit),
-        ("update", 1, "SCRIPT or --all is required", SystemExit),
+        ("install", 2, "Missing argument 'SCRIPT'", SystemExit),
+        ("update", 2, "Provide a tool name or script path", SystemExit),
         ("list", 0, "No tools installed", None),
         ("show", 2, "Missing argument 'TOOL_NAME'", SystemExit),
-        ("uninstall", 1, "Either TOOL_NAME or --all is required", SystemExit),
+        ("uninstall", 2, "Provide TOOL_NAME or --all", SystemExit),
     ],
 )
 def test_current_no_argument_command_behavior(

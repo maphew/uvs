@@ -173,9 +173,9 @@ def test_list_json_has_no_rich_decoration(tmp_path):
 @pytest.mark.parametrize(
     ("arguments", "message"),
     [
-        (["install"], "Script path is required"),
-        (["update"], "SCRIPT or --all is required"),
-        (["uninstall"], "Either TOOL_NAME or --all is required"),
+        (["install"], "Missing argument 'SCRIPT'"),
+        (["update"], "Provide a tool name or script path"),
+        (["uninstall"], "Provide TOOL_NAME or --all"),
     ],
 )
 def test_missing_lifecycle_arguments_fail_on_stderr(arguments, message):

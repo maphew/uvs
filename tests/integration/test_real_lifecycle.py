@@ -164,7 +164,7 @@ def test_real_install_execute_dependency_update_list_show_uninstall(
 
     shown = run_checked([*cli, "show", "--format", "json", command_name], env)
     show_payload = json.loads(shown.stdout)
-    assert show_payload["tools"][command_name]["version"] == "0.1.0"
+    assert show_payload["version"] == "0.1.0"
 
     write_tool(script, "second")
     run_checked([*cli, "update", script], env)
@@ -172,7 +172,7 @@ def test_real_install_execute_dependency_update_list_show_uninstall(
     assert second_run.stdout.startswith("second:")
     updated = json.loads(
         run_checked([*cli, "show", "--format", "json", command_name], env).stdout
-    )["tools"][command_name]
+    )
     assert updated["version"] == "0.1.1"
     assert updated["source_hash"] != first_hash
 

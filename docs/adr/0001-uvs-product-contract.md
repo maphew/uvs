@@ -19,7 +19,8 @@ later fixes do not grow uvs into a second package manager.
   metadata consists of comments, and an `if __name__ == "__main__"` guard is
   inert when the module is imported. Textual removal can alter valid programs.
 - The public CLI uses subcommands only: `uvs install`, `uvs update`, `uvs
-  list`, `uvs show`, and `uvs uninstall`.
+  list`, `uvs show`, and `uvs uninstall` for the lifecycle, plus `uvs doctor`,
+  `uvs prune`, and `uvs backup list|restore` for maintenance.
 - `uv` owns environments, executable installation, replacement, and removal.
   The uvs registry owns only the mapping between an installed uvs command and
   its canonical source script, plus the metadata needed to detect an update.
