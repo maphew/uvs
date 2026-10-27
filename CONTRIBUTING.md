@@ -41,3 +41,5 @@ uv run pytest -m integration -n 0
 ```
 
 See the [test inventory](docs/testing.md) for what each suite proves.
+
+Releases are documented separately in [docs/releasing.md](docs/releasing.md).
